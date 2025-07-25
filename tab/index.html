@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Tab</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <div class="container">
+
+        <!-- Time Display -->
+        <div class="time-container">
+            <div class="digital-display">
+                <div class="time" id="time">12<span class="colon">:</span>48 PM</div>
+                <div class="date" id="date">FRI • JUL 25 • 2025</div>
+            </div>
+        </div>
+        <!-- Google Search Box -->
+        <div class="search-container">
+            <div class="search-wrapper">
+                <input type="text" class="search-box" placeholder="Search Google..." id="searchInput" autocomplete="off">
+                <button class="search-btn" onclick="performSearch()">⌕</button>
+            </div>
+        </div>
+
+        <!-- Responsive 3-Block Layout -->
+        <div class="block-layout">
+            <div class="block block-left">Left Block</div>
+            <div class="block block-middle">Middle Block</div>
+            <div class="block block-right">Right Block</div>
+        </div>
+
+    </div>
+
+    <script src="scripts/main.js"></script>
+</body>
+
+</html>

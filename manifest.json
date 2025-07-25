@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "My Chrome Tab",
+  "version": "1.0",
+  "description": "A customizable new tab page for Chrome",
+  "chrome_url_overrides": {
+    "newtab": "./tab/index.html"
+  },
+  "permissions": ["storage", "favicon"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
