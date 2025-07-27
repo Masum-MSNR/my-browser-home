@@ -54,6 +54,7 @@
     </div>
     <div id="todo-dialog" class="modal">
         <div class="modal-content">
+            <button class="modal-close" id="close-todo-dialog">&times;</button>
             <h4>Add New Task</h4>
             <form id="todo-form" class="my-form">
                 <input type="text" id="todo-input" placeholder="Enter your task..." />
@@ -61,16 +62,19 @@
             </form>
         </div>
     </div>
+
     <div id="mail-dialog" class="modal">
         <div class="modal-content">
+            <button class="modal-close" id="close-mail-dialog">&times;</button>
             <h4>Add Mail Shortcut</h4>
-            <form id="mail-form" class="my-form"> <!-- use the same class -->
+            <form id="mail-form" class="my-form">
                 <input type="text" id="mail-id" placeholder="Enter name or ID..." />
                 <input type="email" id="mail-email" placeholder="Enter Gmail..." />
                 <button type="submit">Add</button>
             </form>
         </div>
     </div>
+
 
     <script src="scripts/main.js"></script>
 </body>

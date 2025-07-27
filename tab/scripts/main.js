@@ -102,10 +102,6 @@ openBtn.addEventListener("click", () => {
   setTimeout(() => todoInput.focus(), 50);
 });
 
-dialog.addEventListener("click", e => {
-  if (e.target === dialog) dialog.style.display = "none";
-});
-
 loadTodos();
 
 const mailList = document.getElementById("mail-list");
@@ -181,8 +177,12 @@ openMailBtn.addEventListener("click", () => {
   setTimeout(() => mailIdInput.focus(), 50);
 });
 
-mailDialog.addEventListener("click", e => {
-  if (e.target === mailDialog) mailDialog.style.display = "none";
+loadMailShortcuts();
+
+document.getElementById("close-todo-dialog").addEventListener("click", () => {
+  dialog.style.display = "none";
 });
 
-loadMailShortcuts();
+document.getElementById("close-mail-dialog").addEventListener("click", () => {
+  mailDialog.style.display = "none";
+});

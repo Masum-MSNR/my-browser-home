@@ -280,6 +280,7 @@ body {
 }
 
 .modal-content {
+   position: relative;
   background-color: #1e293b;
   padding: 2rem;
   border-radius: 16px;
@@ -298,6 +299,35 @@ body {
   font-weight: 600;
 }
 
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  font-size: 1.3rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s ease;
+}
+
+.modal-close:hover {
+  background: #f87171;
+}
+
+
+.modal-close:hover {
+  background: #f87171;
+  color: white;
+  border-color: transparent;
+}
 @keyframes fadeIn {
   from {
     opacity: 0;
