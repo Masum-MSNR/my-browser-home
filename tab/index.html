@@ -39,7 +39,15 @@
                 </div>
 
             </div>
-            <div class="block block-middle">Middle Block</div>
+            <div class="block block-middle">
+                <div class="shortcuts-wrapper">
+                    <div class="shortcuts-header">
+                        <h3>Shortcuts</h3>
+                        <button id="open-shortcut-dialog" title="Add Shortcut">+</button>
+                    </div>
+                    <div id="shortcut-grid" class="shortcut-grid"></div>
+                </div>
+            </div>
             <div class="block block-right">
                 <div class="mail-wrapper">
                     <div class="mail-header">
@@ -62,6 +70,22 @@
             </form>
         </div>
     </div>
+
+    <div id="shortcut-dialog" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" id="close-shortcut-dialog">&times;</button>
+            <h4 id="shortcut-dialog-title">Add Shortcut</h4>
+            <form id="shortcut-form" class="my-form">
+                <input type="url" id="shortcut-url" placeholder="https://example.com" required />
+                <div class="name-input-wrapper">
+                    <input type="text" id="shortcut-name" placeholder="Shortcut Name" required />
+                    <button type="button" id="sync-name-btn" title="Sync name from URL">⟳</button>
+                </div>
+                <button type="submit">Save</button>
+            </form>
+        </div>
+    </div>
+
 
     <div id="mail-dialog" class="modal">
         <div class="modal-content">

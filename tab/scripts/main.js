@@ -196,3 +196,171 @@ document.getElementById("close-mail-dialog").addEventListener("click", () => {
 });
 
 loadMailShortcuts();
+
+/* ============================
+   🌐 SHORTCUTS w/ Edit/Delete + Auto-Fill Name + Manual Sync
+============================ */
+const shortcutList = document.getElementById("shortcut-grid");
+const shortcutDialog = document.getElementById("shortcut-dialog");
+const openShortcutBtn = document.getElementById("open-shortcut-dialog");
+const shortcutForm = document.getElementById("shortcut-form");
+const shortcutNameInput = document.getElementById("shortcut-name");
+const shortcutUrlInput = document.getElementById("shortcut-url");
+const shortcutTitle = document.getElementById("shortcut-dialog-title");
+const closeShortcutDialog = document.getElementById("close-shortcut-dialog");
+const syncNameBtn = document.getElementById("sync-name-btn"); // sync button element
+
+let editingShortcut = null;
+
+/* Get favicon from domain */
+function getFaviconUrl(link) {
+  try {
+    const url = new URL(link);
+    return `https://www.google.com/s2/favicons?sz=64&domain=${url.hostname}`;
+  } catch {
+    return "";
+  }
+}
+
+/* Render all shortcuts from localStorage */
+function renderShortcuts() {
+  shortcutList.innerHTML = "";
+  const shortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+  shortcuts.forEach((shortcut, index) => {
+    const div = document.createElement("div");
+    div.className = "shortcut-item";
+
+    const link = document.createElement("a");
+    link.href = shortcut.url;
+    link.target = "_blank";
+    link.innerHTML = `
+      <img src="${getFaviconUrl(shortcut.url)}" class="shortcut-icon" alt="" />
+      <div class="shortcut-label">${shortcut.name}</div>
+    `;
+
+    const menuBtn = document.createElement("button");
+    menuBtn.className = "shortcut-menu-btn";
+    menuBtn.innerHTML = "⋮";
+
+    const menu = document.createElement("div");
+    menu.className = "shortcut-menu";
+    menu.innerHTML = `
+      <button class="edit-btn">Edit</button>
+      <button class="delete-btn">Delete</button>
+    `;
+
+    menuBtn.onclick = (e) => {
+      e.stopPropagation();
+      closeAllMenus();
+      menu.style.display = "flex";
+    };
+
+    menu.querySelector(".edit-btn").onclick = () => {
+      shortcutNameInput.value = shortcut.name;
+      shortcutUrlInput.value = shortcut.url;
+      shortcutTitle.textContent = "Edit Shortcut";
+      editingShortcut = index;
+      shortcutDialog.style.display = "flex";
+      menu.style.display = "none";
+      syncNameBtn.style.display = "inline"; // Show sync button in edit mode
+    };
+
+    menu.querySelector(".delete-btn").onclick = () => {
+      shortcuts.splice(index, 1);
+      localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+      renderShortcuts();
+    };
+
+    div.appendChild(link);
+    div.appendChild(menuBtn);
+    div.appendChild(menu);
+    shortcutList.appendChild(div);
+  });
+}
+
+/* Close all open shortcut menus */
+function closeAllMenus() {
+  document.querySelectorAll(".shortcut-menu").forEach(menu => {
+    menu.style.display = "none";
+  });
+}
+
+/* Submit handler for add/edit */
+shortcutForm.onsubmit = (e) => {
+  e.preventDefault();
+  const name = shortcutNameInput.value.trim();
+  const url = shortcutUrlInput.value.trim();
+  if (!name || !url) return;
+
+  const shortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+
+  if (editingShortcut !== null) {
+    shortcuts[editingShortcut] = { name, url };
+  } else {
+    shortcuts.push({ name, url });
+  }
+
+  localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+  renderShortcuts();
+  shortcutForm.reset();
+  shortcutDialog.style.display = "none";
+  editingShortcut = null;
+  syncNameBtn.style.display = "none"; // Hide sync button after save
+};
+
+/* Open Add Shortcut Dialog */
+openShortcutBtn.onclick = () => {
+  editingShortcut = null;
+  shortcutForm.reset();
+  shortcutTitle.textContent = "Add Shortcut";
+  shortcutDialog.style.display = "flex";
+  shortcutNameInput.dataset.manualEdit = "";
+  syncNameBtn.style.display = "none"; // Hide sync in add mode
+};
+
+/* Close Shortcut Dialog */
+closeShortcutDialog.onclick = () => {
+  shortcutDialog.style.display = "none";
+};
+
+/* Auto-fill name from URL (only when adding) */
+shortcutUrlInput.addEventListener("input", () => {
+  if (editingShortcut !== null) return; // Skip during editing
+
+  const url = shortcutUrlInput.value.trim();
+  try {
+    const parsed = new URL(url);
+    const domain = parsed.hostname.replace(/^www\./, '');
+    if (!shortcutNameInput.dataset.manualEdit) {
+      shortcutNameInput.value = domain.split('.')[0];
+    }
+  } catch {
+    // Invalid URL; do nothing
+  }
+});
+
+/* Mark name as manually edited */
+shortcutNameInput.addEventListener("input", () => {
+  shortcutNameInput.dataset.manualEdit = "true";
+});
+
+/* Sync name manually from URL */
+syncNameBtn.addEventListener("click", () => {
+  const url = shortcutUrlInput.value.trim();
+  try {
+    const parsed = new URL(url);
+    const domain = parsed.hostname.replace(/^www\./, '');
+    shortcutNameInput.value = domain.split('.')[0];
+    shortcutNameInput.dataset.manualEdit = "";
+  } catch {
+    alert("Invalid URL. Please enter a valid URL first.");
+  }
+});
+
+/* Close menus on outside click */
+document.addEventListener("click", () => {
+  closeAllMenus();
+});
+
+/* Initial load */
+renderShortcuts();
