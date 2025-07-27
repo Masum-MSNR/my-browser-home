@@ -1,5 +1,9 @@
+/* ============================
+   ⏰ CLOCK / DATE DISPLAY
+============================ */
 function updateTime() {
   const now = new Date();
+
   const timeString = now.toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
@@ -18,10 +22,13 @@ function updateTime() {
   document.getElementById('time').innerHTML = timeWithColon;
   document.getElementById('date').textContent = dateString;
 }
+
 updateTime();
 setInterval(updateTime, 1000);
 
-// ------- Search Functionality -------
+/* ============================
+   🔍 SEARCH FUNCTIONALITY
+============================ */
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("search-form");
   const searchInput = document.getElementById("search-input");
@@ -45,13 +52,15 @@ function performSearch() {
   }
 }
 
-// Enter key search
 document.getElementById('searchInput').addEventListener('keypress', function (e) {
   if (e.key === 'Enter') {
     performSearch();
   }
 });
 
+/* ============================
+   ✅ TO-DO LIST FUNCTIONALITY
+============================ */
 const todoInput = document.getElementById("todo-input");
 const todoList = document.getElementById("todo-list");
 const dialog = document.getElementById("todo-dialog");
@@ -84,7 +93,6 @@ function addTodoItem(text) {
   todoList.appendChild(li);
 }
 
-// Form handler
 const todoForm = document.getElementById("todo-form");
 todoForm.addEventListener("submit", function (e) {
   e.preventDefault();
@@ -102,8 +110,15 @@ openBtn.addEventListener("click", () => {
   setTimeout(() => todoInput.focus(), 50);
 });
 
+document.getElementById("close-todo-dialog").addEventListener("click", () => {
+  dialog.style.display = "none";
+});
+
 loadTodos();
 
+/* ============================
+   📧 MAIL SHORTCUT FUNCTIONALITY
+============================ */
 const mailList = document.getElementById("mail-list");
 const mailDialog = document.getElementById("mail-dialog");
 const openMailBtn = document.getElementById("open-mail-dialog");
@@ -158,7 +173,6 @@ function addMailItem(id, email) {
   mailList.appendChild(li);
 }
 
-// Handle form submission
 mailForm.addEventListener("submit", function (e) {
   e.preventDefault();
   const id = mailIdInput.value.trim();
@@ -177,12 +191,8 @@ openMailBtn.addEventListener("click", () => {
   setTimeout(() => mailIdInput.focus(), 50);
 });
 
-loadMailShortcuts();
-
-document.getElementById("close-todo-dialog").addEventListener("click", () => {
-  dialog.style.display = "none";
-});
-
 document.getElementById("close-mail-dialog").addEventListener("click", () => {
   mailDialog.style.display = "none";
 });
+
+loadMailShortcuts();
