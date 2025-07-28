@@ -13,7 +13,8 @@ async function getFaviconUrl(link) {
   return new Promise(async (resolve) => {
     try {
       const urlObj = new URL(link);
-      const rootDomain = getRootDomain(urlObj.href);
+      const rootDomain = getFullDomain(urlObj.href);
+      console.log("Root Domain:", rootDomain);
 
       if (!rootDomain) {
         const fallback = `https://www.google.com/s2/favicons?sz=64&domain=${urlObj.hostname}`;

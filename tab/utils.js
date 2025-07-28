@@ -1,4 +1,4 @@
- function getRootDomain(url) {
+function getRootDomain(url) {
   try {
     const knownMultiLevelTLDs = [
       'co.uk', 'ac.uk', 'gov.uk', 'co.in', 'com.au', 'com.br', 'co.jp', 'co.kr', 'co.za', 'com.cn'
@@ -21,6 +21,16 @@
     }
 
     return lastTwo;
+  } catch (e) {
+    console.warn("Invalid URL:", url);
+    return '';
+  }
+}
+
+function getFullDomain(url) {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname.replace(/^www\./, '');
   } catch (e) {
     console.warn("Invalid URL:", url);
     return '';
