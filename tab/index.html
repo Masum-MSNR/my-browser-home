@@ -4,8 +4,17 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>New Tab</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>My Chrome Tab</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/clock.css" />
+    <link rel="stylesheet" href="styles/search.css" />
+    <link rel="stylesheet" href="styles/layout.css" />
+    <link rel="stylesheet" href="styles/todo.css" />
+    <link rel="stylesheet" href="styles/mail.css" />
+    <link rel="stylesheet" href="styles/shortcuts.css" />
+    <link rel="stylesheet" href="styles/modal.css" />
 </head>
 
 <body>
@@ -31,29 +40,17 @@
         <div class="block-layout">
             <div class="block block-left">
                 <div class="todo-wrapper">
-                    <div class="todo-header">
-                        <h3>My Tasks</h3>
-                        <button id="open-dialog" title="Add Task">+</button>
-                    </div>
                     <ul id="todo-list"></ul>
                 </div>
 
             </div>
             <div class="block block-middle">
                 <div class="shortcuts-wrapper">
-                    <div class="shortcuts-header">
-                        <h3>Shortcuts</h3>
-                        <button id="open-shortcut-dialog" title="Add Shortcut">+</button>
-                    </div>
                     <div id="shortcut-grid" class="shortcut-grid"></div>
                 </div>
             </div>
             <div class="block block-right">
                 <div class="mail-wrapper">
-                    <div class="mail-header">
-                        <h3>Mail Shortcuts</h3>
-                        <button id="open-mail-dialog" title="Add Mail">+</button>
-                    </div>
                     <ul id="mail-list"></ul>
                 </div>
             </div>
@@ -100,7 +97,11 @@
     </div>
 
 
-    <script src="scripts/main.js"></script>
+    <script src="scripts/clock.js"></script>
+    <script src="scripts/search.js"></script>
+    <script src="scripts/todo.js"></script>
+    <script src="scripts/mail.js"></script>
+    <script src="scripts/shortcuts.js"></script>
 </body>
 
 </html>

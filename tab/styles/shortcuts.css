@@ -1,0 +1,122 @@
+/* ===== SHORTCUTS WRAPPER (Entire Section Block) ===== */
+.shortcuts-wrapper {
+  text-align: left;
+  width: 100%;
+}
+
+#open-shortcut-dialog {
+  font-size: 1.5rem;
+  background-color: #2563eb;
+  border: none;
+  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: background 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#open-shortcut-dialog:hover {
+  background-color: #1d4ed8;
+}
+
+/* ===== GRID LAYOUT FOR SHORTCUT CARDS ===== */
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 1.25rem;
+}
+
+/* ===== EACH SHORTCUT ITEM CARD ===== */
+.shortcut-item {
+  position: relative;
+  text-align: center;
+  cursor: pointer;
+  color: white;
+  text-decoration: none;
+}
+
+/* Show menu button on hover */
+.shortcut-item:hover .shortcut-menu-btn {
+  opacity: 1;
+}
+
+/* ===== FAVICON ICON STYLE ===== */
+.shortcut-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin: 0 auto 0.5rem auto;
+  display: block;
+  background-color: #1f2937;
+  object-fit: cover;
+}
+
+/* ===== LABEL BELOW ICON ===== */
+.shortcut-label {
+  font-size: 0.85rem;
+  word-break: break-word;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+}
+
+.shortcut-item,
+.shortcut-item a,
+.shortcut-item a:link,
+.shortcut-item a:visited,
+.shortcut-item a:hover,
+.shortcut-item a:active {
+  text-decoration: none !important;
+}
+
+/* ===== "⋮" MENU BUTTON ON CARD ===== */
+.shortcut-menu-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 1.2rem;
+  background: transparent;
+  border: none;
+  color: white;
+  opacity: 0;
+  cursor: pointer;
+  padding: 0.25rem;
+  z-index: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* ===== DROPDOWN MENU CONTAINER ===== */
+.shortcut-menu {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  display: none;
+  flex-direction: column;
+  z-index: 2;
+}
+
+/* ===== MENU OPTIONS (Edit / Delete) ===== */
+.shortcut-menu button {
+  background: none;
+  border: none;
+  color: white;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.shortcut-menu button:hover {
+  background-color: #374151;
+}
+

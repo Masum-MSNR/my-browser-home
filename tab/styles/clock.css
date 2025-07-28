@@ -1,0 +1,75 @@
+/* ===== CLOCK ===== */
+.clock {
+  font-size: 3.5rem;
+  font-weight: 600;
+  padding: 1rem 2rem;
+  margin-bottom: 2rem;
+  letter-spacing: 2px;
+  color: var(--color-text);
+  display: inline-block;
+}
+
+.time-container {
+  perspective: 1000px;
+  position: relative;
+}
+
+.digital-display {
+  padding: 25px 40px;
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+}
+
+.digital-display::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  animation: scanLines 2s linear infinite;
+}
+
+.time {
+  font-family: 'Digital7', monospace;
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  font-weight: bold;
+  color: #00ff66;
+  letter-spacing: 0.15em;
+  display: block;
+  text-align: center;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.time .colon {
+  animation: blink 1s infinite;
+  display: inline-block;
+}
+
+@keyframes blink {
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0.3;
+  }
+}
+
+.date {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  font-size: clamp(0.9rem, 2vw, 1.3rem);
+  font-weight: normal;
+  color: #00cc55;
+  letter-spacing: 0.1em;
+  text-align: center;
+  opacity: 0.9;
+  text-transform: uppercase;
+}
+

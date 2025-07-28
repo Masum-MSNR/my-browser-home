@@ -28,7 +28,7 @@
 body {
   margin: 0;
   padding: 0;
-  min-height: 100vh; 
+  min-height: 100vh;
   background: var(--color-bg);
   font-family: Arial, sans-serif;
   display: flex;
@@ -40,7 +40,7 @@ body {
 .container {
   width: 100%;
   max-width: 1280px;
-  margin: 0 auto; 
+  margin: 0 auto;
   padding: 1.5rem;
   text-align: center;
   color: var(--color-text);
@@ -107,8 +107,16 @@ body {
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0.3; }
+
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  51%,
+  100% {
+    opacity: 0.3;
+  }
 }
 
 .date {
@@ -216,11 +224,7 @@ body {
 }
 
 .block {
-  background-color: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
   text-align: center;
   color: var(--color-text);
   display: flex;
@@ -244,9 +248,17 @@ body {
       "left right";
   }
 
-  .block-left { grid-area: left; }
-  .block-middle { grid-area: middle; }
-  .block-right { grid-area: right; }
+  .block-left {
+    grid-area: left;
+  }
+
+  .block-middle {
+    grid-area: middle;
+  }
+
+  .block-right {
+    grid-area: right;
+  }
 }
 
 @media (max-width: 768px) {
@@ -280,7 +292,7 @@ body {
 }
 
 .modal-content {
-   position: relative;
+  position: relative;
   background-color: #1e293b;
   padding: 2rem;
   border-radius: 16px;
@@ -328,11 +340,13 @@ body {
   color: white;
   border-color: transparent;
 }
+
 @keyframes fadeIn {
   from {
     opacity: 0;
     transform: scale(0.98);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -388,7 +402,7 @@ body {
 }
 
 .todo-header h3 {
-  font-size: 1.3rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--color-text);
   margin: 0;
@@ -414,12 +428,16 @@ body {
 
 #todo-list {
   list-style: none;
+  position: relative;
   padding: 0;
   margin: 0;
-  max-height: 220px;
+  min-height: 0;
+  max-height: calc(100vh - 50vh - 2rem);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #888 #1e293b;
+  display: flex;
+  flex-direction: column;
 }
 
 #todo-list::-webkit-scrollbar {
@@ -439,6 +457,7 @@ body {
   background-color: rgba(255, 255, 255, 0.07);
   padding: 0.6rem 1rem;
   margin-bottom: 0.6rem;
+  margin-right: 0.6rem;
   border-radius: 8px;
   color: white;
   display: flex;
@@ -467,24 +486,27 @@ body {
   color: #ef4444;
 }
 
+#todo-items-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+
+#add-task-button {
+  position: sticky;
+  bottom: 0 !important;
+  /* padding: 0.6rem 1rem !important; */
+  z-index: 1;
+}
+
+#add-task-button:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
 /* ===== MAIL SHORTCUTS ===== */
 .mail-wrapper {
   text-align: left;
   width: 100%;
-}
-
-.mail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.mail-header h3 {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: var(--color-text);
-  margin: 0;
 }
 
 #open-mail-dialog {
@@ -506,17 +528,40 @@ body {
 }
 
 #mail-list {
+  position: relative;
   list-style: none;
   padding: 0;
   margin: 0;
-  max-height: 220px;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
   overflow-y: auto;
+  max-height: calc(100vh - 50vh - 2rem);
+  scrollbar-width: thin;
+  scrollbar-color: #888 #1e293b;
+  display: flex;
+  flex-direction: column;
+}
+
+
+#mail-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+#mail-list::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 4px;
+}
+
+#mail-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 #mail-list li {
   background-color: rgba(255, 255, 255, 0.07);
   padding: 0.6rem 1rem;
   margin-bottom: 0.6rem;
+  margin-right: 0.6rem;
   border-radius: 8px;
   color: white;
   display: flex;
@@ -526,11 +571,49 @@ body {
   box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.05);
 }
 
+#mail-list li:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
 .mail-info {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
+
+
+#mail-list li button {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 1.1rem;
+  cursor: pointer;
+  margin-left: 1rem;
+  transition: color 0.2s ease;
+}
+
+#mail-list li button:hover {
+  color: #ef4444;
+}
+
+#mail-items-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+
+
+#add-mail-button {
+  position: sticky;
+  bottom: 0 !important;
+  /* padding: 0.6rem 1rem !important; */
+  z-index: 1;
+}
+
+#add-mail-button:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
 
 .mail-avatar {
   background-color: #3b82f6;
@@ -560,40 +643,11 @@ body {
   opacity: 0.8;
 }
 
-#mail-list li button {
-  background: transparent;
-  border: none;
-  color: #f87171;
-  font-size: 1.1rem;
-  cursor: pointer;
-  margin-left: 1rem;
-  transition: color 0.2s ease;
-}
-
-#mail-list li button:hover {
-  color: #ef4444;
-}
-
 
 /* ===== SHORTCUTS WRAPPER (Entire Section Block) ===== */
 .shortcuts-wrapper {
   text-align: left;
   width: 100%;
-}
-
-/* ===== HEADER WITH TITLE & "+" ADD BUTTON ===== */
-.shortcuts-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.shortcuts-header h3 {
-  font-size: 1.3rem;
-  font-weight: 600;
-  color: var(--color-text);
-  margin: 0;
 }
 
 #open-shortcut-dialog {
@@ -653,6 +707,17 @@ body {
 .shortcut-label {
   font-size: 0.85rem;
   word-break: break-word;
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+}
+
+.shortcut-item,
+.shortcut-item a,
+.shortcut-item a:link,
+.shortcut-item a:visited,
+.shortcut-item a:hover,
+.shortcut-item a:active {
+  text-decoration: none !important;
 }
 
 /* ===== "⋮" MENU BUTTON ON CARD ===== */
@@ -740,7 +805,8 @@ body {
 
 .name-input-wrapper input {
   width: 100%;
-  padding-right: 2.5rem; /* space for the icon */
+  padding-right: 2.5rem;
+  /* space for the icon */
   padding-left: 1rem;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
@@ -776,4 +842,72 @@ body {
 
 #sync-name-btn:hover {
   opacity: 1;
+}
+
+/* Style for the "Add Shortcut" button */
+.add-shortcut-btn {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  /* Match shortcut-label font size */
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  /* Remove border radius to match shortcut items */
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: auto;
+  /* Let it size naturally like other shortcuts */
+  width: 100%;
+  box-shadow: none;
+  /* Remove shadow to match other items */
+  transition: background-color 0.2s ease;
+  text-decoration: none;
+  position: relative;
+}
+
+/* Icon container to match shortcut-icon structure */
+.add-shortcut-btn .add-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin: 0 auto 0.5rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.1);
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Text style to match shortcut-label */
+.add-shortcut-btn .add-text {
+  font-size: 0.85rem;
+  word-break: break-word;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.add-shortcut-btn:hover .add-icon {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Remove the old styles that don't match */
+.add-shortcut-btn:hover {
+  transform: none;
+  /* Remove transform effects */
+  box-shadow: none;
+  /* Remove shadow effects */
+}
+
+.add-shortcut-btn:active {
+  transform: none;
+  /* Remove active transform */
+  box-shadow: none;
+  /* Remove active shadow */
+  background-color: rgba(255, 255, 255, 0.05);
+  /* Just a subtle background change */
 }
