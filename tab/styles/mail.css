@@ -1,4 +1,3 @@
-/* ===== MAIL SHORTCUTS ===== */
 .mail-wrapper {
   text-align: left;
   width: 100%;
@@ -103,7 +102,6 @@
 #add-mail-button {
   position: sticky;
   bottom: 0 !important;
-  /* padding: 0.6rem 1rem !important; */
   z-index: 1;
 }
 
@@ -113,4 +111,10 @@
 
 .mail-text .id {
   display: none;
+}
+
+@media (max-width: 768px) {
+  .todo-wrapper {
+    min-width: 400px;
+  }
 }

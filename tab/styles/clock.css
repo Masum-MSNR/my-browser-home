@@ -12,6 +12,7 @@
 .time-container {
   perspective: 1000px;
   position: relative;
+  min-width: 400px;
 }
 
 .digital-display {
@@ -72,4 +73,3 @@
   opacity: 0.9;
   text-transform: uppercase;
 }
-

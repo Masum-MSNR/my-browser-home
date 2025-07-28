@@ -75,7 +75,7 @@
   transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.custom-checkbox input:checked + .checkmark {
+.custom-checkbox input:checked+.checkmark {
   background-color: #2563eb;
   border-color: #2563eb;
 }
@@ -93,6 +93,12 @@
   transform: rotate(45deg);
 }
 
-.custom-checkbox input:checked + .checkmark::after {
+.custom-checkbox input:checked+.checkmark::after {
   display: block;
+}
+
+@media (max-width: 768px) {
+  .todo-wrapper {
+    min-width: 400px;
+  }
 }
