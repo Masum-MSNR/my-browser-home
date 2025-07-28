@@ -30,7 +30,9 @@ function renderShortcuts() {
     link.href = shortcut.url;
     link.target = "_blank";
     link.innerHTML = `
-      <img src="${getFaviconUrl(shortcut.url)}" class="shortcut-icon" alt="" />
+      <div class="shortcut-icon-wrapper">
+        <img src="${getFaviconUrl(shortcut.url)}" class="shortcut-icon" alt="" />
+      </div>
       <div class="shortcut-label">${shortcut.name}</div>
     `;
 
@@ -145,7 +147,7 @@ shortcutUrlInput.addEventListener("input", () => {
     if (!shortcutNameInput.dataset.manualEdit) {
       shortcutNameInput.value = domain.split('.')[0];
     }
-  } catch {}
+  } catch { }
 });
 
 shortcutNameInput.addEventListener("input", () => {
