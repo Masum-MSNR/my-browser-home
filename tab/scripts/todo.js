@@ -36,17 +36,38 @@ todoList.appendChild(addTaskButton);
 function loadTodos() {
   todoItemsWrapper.innerHTML = "";
   const todos = JSON.parse(localStorage.getItem("todos")) || [];
-  todos.forEach(text => addTodoItem(text));
+  todos.forEach(({ text, checked }) => addTodoItem(text, checked));
 }
 
 function saveTodos() {
-  const todos = Array.from(todoItemsWrapper.children).map(li => li.firstChild.textContent.trim());
+  const todos = Array.from(todoItemsWrapper.children).map(li => {
+    return {
+      text: li.querySelector(".todo-text").textContent.trim(),
+      checked: li.querySelector("input[type='checkbox']").checked
+    };
+  });
   localStorage.setItem("todos", JSON.stringify(todos));
 }
 
-function addTodoItem(text) {
+function addTodoItem(text, checked = false) {
   const li = document.createElement("li");
+
+  const checkboxWrapper = document.createElement("label");
+  checkboxWrapper.className = "custom-checkbox";
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = checked;
+  checkbox.addEventListener("change", saveTodos);
+
+  const checkmark = document.createElement("span");
+  checkmark.className = "checkmark";
+
+  checkboxWrapper.appendChild(checkbox);
+  checkboxWrapper.appendChild(checkmark);
+
   const span = document.createElement("span");
+  span.className = "todo-text";
   span.textContent = text;
 
   const delBtn = document.createElement("button");
@@ -56,6 +77,7 @@ function addTodoItem(text) {
     saveTodos();
   };
 
+  li.appendChild(checkboxWrapper);
   li.appendChild(span);
   li.appendChild(delBtn);
   todoItemsWrapper.appendChild(li);
@@ -77,4 +99,23 @@ document.getElementById("close-todo-dialog").addEventListener("click", () => {
   dialog.style.display = "none";
 });
 
+function scheduleDailyReset() {
+  const now = new Date();
+  const nextReset = new Date();
+  nextReset.setHours(24, 0, 0, 0);
+  const msUntilReset = nextReset.getTime() - now.getTime();
+  setTimeout(() => {
+    resetCheckboxes();
+    scheduleDailyReset();
+  }, msUntilReset);
+}
+
+function resetCheckboxes() {
+  const todos = JSON.parse(localStorage.getItem("todos")) || [];
+  const resetTodos = todos.map(t => ({ ...t, checked: false }));
+  localStorage.setItem("todos", JSON.stringify(resetTodos));
+  loadTodos();
+}
+
 loadTodos();
+scheduleDailyReset();
