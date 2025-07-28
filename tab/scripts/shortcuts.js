@@ -29,7 +29,6 @@ async function getFaviconUrl(link) {
         }
       });
     } catch {
-      // fallback in case of any parsing error
       resolve(`https://www.google.com/s2/favicons?sz=64&domain=${link}`);
     }
   });
@@ -45,15 +44,14 @@ async function renderShortcuts() {
 
     const link = document.createElement("a");
     link.href = shortcut.url;
-    link.target = "_blank";
     const favicon = await getFaviconUrl(shortcut.url);
 
     link.innerHTML = `
-  <div class="shortcut-icon-wrapper">
-    <img src="${favicon}" class="shortcut-icon" alt="" />
-  </div>
-  <div class="shortcut-label">${shortcut.name}</div>
-`;
+      <div class="shortcut-icon-wrapper">
+        <img src="${favicon}" class="shortcut-icon" alt="" />
+      </div>
+      <div class="shortcut-label">${shortcut.name}</div>
+    `;  
 
     const menuBtn = document.createElement("button");
     menuBtn.className = "shortcut-menu-btn";
