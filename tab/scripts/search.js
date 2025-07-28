@@ -7,8 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
       e.preventDefault();
       const query = searchInput.value.trim();
       if (query) {
-        const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-        window.open(googleUrl, "_blank");
+        window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
       }
     });
   }
@@ -17,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function performSearch() {
   const query = document.getElementById('searchInput').value;
   if (query.trim()) {
-    window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
+    window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   }
 }
 
