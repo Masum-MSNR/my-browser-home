@@ -9,32 +9,51 @@ const syncNameBtn = document.getElementById("sync-name-btn");
 
 let editingShortcut = null;
 
-function getFaviconUrl(link) {
-  try {
-    const url = new URL(link);
-    return `https://www.google.com/s2/favicons?sz=64&domain=${url.hostname}`;
-  } catch {
-    return "";
-  }
+async function getFaviconUrl(link) {
+  return new Promise(async (resolve) => {
+    try {
+      const urlObj = new URL(link);
+      const rootDomain = getRootDomain(urlObj.href);
+
+      if (!rootDomain) {
+        const fallback = `https://www.google.com/s2/favicons?sz=64&domain=${urlObj.hostname}`;
+        return resolve(fallback);
+      }
+
+      chrome.storage.local.get(rootDomain, (result) => {
+        if (result && result[rootDomain] && result[rootDomain].favicon) {
+          resolve(result[rootDomain].favicon);
+        } else {
+          const fallback = `https://www.google.com/s2/favicons?sz=64&domain=${rootDomain}`;
+          resolve(fallback);
+        }
+      });
+    } catch {
+      // fallback in case of any parsing error
+      resolve(`https://www.google.com/s2/favicons?sz=64&domain=${link}`);
+    }
+  });
 }
 
-function renderShortcuts() {
+async function renderShortcuts() {
   shortcutList.innerHTML = "";
   const shortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
 
-  shortcuts.forEach((shortcut, index) => {
+  for (const [index, shortcut] of shortcuts.entries()) {
     const div = document.createElement("div");
     div.className = "shortcut-item";
 
     const link = document.createElement("a");
     link.href = shortcut.url;
     link.target = "_blank";
+    const favicon = await getFaviconUrl(shortcut.url);
+
     link.innerHTML = `
-      <div class="shortcut-icon-wrapper">
-        <img src="${getFaviconUrl(shortcut.url)}" class="shortcut-icon" alt="" />
-      </div>
-      <div class="shortcut-label">${shortcut.name}</div>
-    `;
+  <div class="shortcut-icon-wrapper">
+    <img src="${favicon}" class="shortcut-icon" alt="" />
+  </div>
+  <div class="shortcut-label">${shortcut.name}</div>
+`;
 
     const menuBtn = document.createElement("button");
     menuBtn.className = "shortcut-menu-btn";
@@ -73,7 +92,7 @@ function renderShortcuts() {
     div.appendChild(menuBtn);
     div.appendChild(menu);
     shortcutList.appendChild(div);
-  });
+  };
 
   addAddShortcutButton();
 }
