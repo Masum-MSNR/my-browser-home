@@ -22,7 +22,7 @@
 }
 
 #mail-list::-webkit-scrollbar-thumb {
-  background-color: #555;
+  background-color: var(--overlay-color);
   border-radius: 4px;
 }
 
