@@ -46,11 +46,6 @@
   min-height: 48px;
 }
 
-#mail-list li:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-
 #mail-list li button {
   background: transparent;
   border: none;
@@ -73,7 +68,7 @@
 
 .mail-links a {
   font-size: 0.85rem;
-  color: #93c5fd;
+  color:var(--color-text);
   text-decoration: underline;
   margin-right: 0.75rem;
 }
@@ -87,10 +82,6 @@
   position: sticky;
   bottom: 0 !important;
   z-index: 1;
-}
-
-#add-mail-button:hover {
-  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .mail-text .id {

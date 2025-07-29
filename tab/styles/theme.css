@@ -1,0 +1,134 @@
+body.dark-text {
+    --text-color: #ffffff;
+    --clock-text-color: #ffffff;
+    --search-text-color: #ffffff;
+    --search-placeholder-text-color: rgba(255, 255, 255, 0.6);
+    --shadow-color: rgba(0, 0, 0, 0.7);
+    --overlay-color: rgba(0, 0, 0, 0.3);
+    --hover-overlay-color: rgba(0, 0, 0, 0.5);
+}
+
+body.light-text {
+    --text-color: #ffffff;
+    --clock-text-color: #ffffff;
+    --search-text-color: #000000;
+    --search-placeholder-text-color: rgba(0, 0, 0, 0.6);
+    --shadow-color: rgba(255, 255, 255, 0.6);
+    --overlay-color: rgba(255, 255, 255, 0.25);
+    --hover-overlay-color: rgba(255, 255, 255, 0.4);
+}
+
+
+.todo-text,
+.shortcut-label,
+.mail-left,
+#todo-list li,
+#mail-list li,
+.add-shortcut-btn {
+    color: var(--text-color);
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+    font-weight: 500;
+}
+
+#time,
+#date {
+    color: var(--clock-text-color);
+    text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+}
+
+.todo-wrapper li,
+#mail-list li,
+#todo-list li {
+    background-color: var(--overlay-color);
+}
+
+.todo-wrapper li:hover,
+#mail-list li:hover,
+#todo-list li:hover,
+.shortcut-icon-wrapper:hover,
+.add-shortcut-btn .add-icon:hover {
+    background-color: var(--hover-overlay-color);
+    transition: background-color 0.2s ease;
+}
+
+.search-box {
+    color: var(--search-text-color);
+    opacity: 0.75;
+}
+
+.search-box::placeholder {
+    color: var(--search-placeholder-text-color);
+}
+
+.theme-toggle-icon {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background-color: rgba(0, 0, 0, 0.4);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    padding: 0.6rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 999;
+    transition: background-color 0.2s ease;
+}
+
+.theme-toggle-icon:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.theme-panel {
+    position: fixed;
+    top: 0;
+    right: -320px;
+    width: 320px;
+    height: 100vh;
+    background: #1e293b;
+    color: white;
+    z-index: 1000;
+    padding: 1rem;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
+    transition: right 0.3s ease-in-out;
+    overflow-y: auto;
+}
+
+.theme-panel.open {
+    right: 0;
+}
+
+.theme-panel h3 {
+    margin-top: 0;
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.close-theme-panel {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 1.5rem;
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+}
+
+.theme-options {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.theme-thumb {
+    width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border 0.2s ease;
+}
+
+.theme-thumb:hover {
+    border-color: #3b82f6;
+}

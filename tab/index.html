@@ -15,10 +15,24 @@
     <link rel="stylesheet" href="styles/mail.css" />
     <link rel="stylesheet" href="styles/shortcuts.css" />
     <link rel="stylesheet" href="styles/modal.css" />
+    <link rel="stylesheet" href="styles/theme.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 
 <body>
     <div class="container">
+        <!-- Palette Icon to Open Panel -->
+        <button id="open-theme-panel" class="theme-toggle-icon" title="Change Theme">
+            <i class="fas fa-palette"></i>
+        </button>
+
+        <!-- Theme Slide Panel -->
+        <div id="theme-panel" class="theme-panel">
+            <button class="close-theme-panel">&times;</button>
+            <h3>Select a Theme</h3>
+            <div class="theme-options" id="theme-options"></div>
+        </div>
+
 
         <!-- Time Display -->
         <div class="time-container">
@@ -89,7 +103,7 @@
             <button class="modal-close" id="close-mail-dialog">&times;</button>
             <h4>Add Mail Shortcut</h4>
             <form id="mail-form" class="my-form">
-                <input type="text" id="mail-id" placeholder="Enter ID..." autocomplete="off"/>
+                <input type="text" id="mail-id" placeholder="Enter ID..." autocomplete="off" />
                 <input type="email" id="mail-email" placeholder="Enter Gmail..." />
                 <button type="submit">Add</button>
             </form>
@@ -103,6 +117,7 @@
     <script src="scripts/mail.js"></script>
     <script src="scripts/shortcuts.js" type="module"></script>
     <script src="./utils.js"></script>
+    <script src="scripts/theme.js"></script>
 </body>
 
 </html>

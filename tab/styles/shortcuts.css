@@ -3,27 +3,6 @@
   width: 100%;
 }
 
-#open-shortcut-dialog {
-  font-size: 1.5rem;
-  background-color: #2563eb;
-  border: none;
-  color: white;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  cursor: pointer;
-  line-height: 1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  transition: background 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#open-shortcut-dialog:hover {
-  background-color: #1d4ed8;
-}
-
 .shortcut-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
@@ -34,7 +13,6 @@
   position: relative;
   text-align: center;
   cursor: pointer;
-  color: white;
   text-decoration: none;
 }
 
@@ -46,7 +24,7 @@
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--overlay-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -118,6 +96,45 @@
 
 .shortcut-menu button:hover {
   background-color: #374151;
+}
+
+.add-shortcut-btn {
+  color: var(--color-text);
+  font-size: 0.85rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: auto;
+  width: 100%;
+  box-shadow: none;
+  transition: background-color 0.2s ease;
+  text-decoration: none;
+  position: relative;
+}
+
+.add-shortcut-btn .add-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin: 0 auto 0.5rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--overlay-color);
+  font-size: 1.5rem;
+  color: var(--color-text);
+}
+
+.add-shortcut-btn .add-text {
+  font-size: 0.85rem;
+  word-break: break-word;
+  color: var(--color-text);
 }
 
 @media (max-width: 768px) {
