@@ -51,9 +51,8 @@ function saveTodos() {
 function addTodoItem(text, checked = false) {
   const li = document.createElement("li");
 
-  // Create label to wrap checkbox and text together
   const label = document.createElement("label");
-  label.className = "todo-item"; // flex wrapper for checkbox + text
+  label.className = "todo-item";
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
@@ -79,8 +78,8 @@ function addTodoItem(text, checked = false) {
     saveTodos();
   };
 
-  li.appendChild(label); // label holds checkbox + text
-  li.appendChild(delBtn); // delete button aligned right
+  li.appendChild(label);
+  li.appendChild(delBtn);
   todoItemsWrapper.appendChild(li);
 }
 

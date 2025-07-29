@@ -30,6 +30,7 @@
   background-color: rgba(255, 255, 255, 0.07);
   padding: 0.6rem 1rem;
   margin-bottom: 0.6rem;
+  margin-right: 0.5rem;
   border-radius: 8px;
   color: white;
   display: flex;
@@ -105,11 +106,11 @@
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.todo-item input[type="checkbox"]:checked + .checkmark::after {
+.todo-item input[type="checkbox"]:checked+.checkmark::after {
   display: block;
 }
 
-.todo-item input[type="checkbox"]:checked + .checkmark {
+.todo-item input[type="checkbox"]:checked+.checkmark {
   background-color: #2563eb;
   border-color: #2563eb;
 }
@@ -118,6 +119,12 @@
   color: white;
   font-size: 0.95rem;
   word-break: break-word;
+}
+
+@media (max-width: 1024px) {
+  #todo-list {
+    max-height: none;
+  }
 }
 
 @media (max-width: 768px) {
