@@ -34,6 +34,7 @@ body {
   justify-content: center;
   align-items: center;
   color: var(--color-text);
+  user-select: none;
 }
 
 .container {
