@@ -3,24 +3,6 @@
   width: 100%;
 }
 
-#open-mail-dialog {
-  font-size: 1.5rem;
-  background-color: #2563eb;
-  border: none;
-  color: white;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  cursor: pointer;
-  line-height: 1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-  transition: background 0.3s ease;
-}
-
-#open-mail-dialog:hover {
-  background-color: #1d4ed8;
-}
-
 #mail-list {
   position: relative;
   list-style: none;
@@ -67,6 +49,20 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+
+#mail-list li button {
+  background: transparent;
+  border: none;
+  color: #f87171;
+  font-size: 1.2rem;
+  cursor: pointer;
+  margin-left: 1rem;
+}
+
+#mail-list li button:hover {
+  color: #ef4444;
+}
+
 .mail-left {
   display: flex;
   flex-direction: column;
@@ -79,19 +75,6 @@
   color: #93c5fd;
   text-decoration: underline;
   margin-right: 0.75rem;
-}
-
-.mail-delete-btn {
-  background: transparent;
-  border: none;
-  color: #f87171;
-  font-size: 1.2rem;
-  cursor: pointer;
-  margin-left: 1rem;
-}
-
-.mail-delete-btn:hover {
-  color: #ef4444;
 }
 
 #mail-items-wrapper {

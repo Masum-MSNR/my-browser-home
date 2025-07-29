@@ -48,12 +48,12 @@ function saveTodos() {
   });
   localStorage.setItem("todos", JSON.stringify(todos));
 }
-
 function addTodoItem(text, checked = false) {
   const li = document.createElement("li");
 
-  const checkboxWrapper = document.createElement("label");
-  checkboxWrapper.className = "custom-checkbox";
+  // Create label to wrap checkbox and text together
+  const label = document.createElement("label");
+  label.className = "todo-item"; // flex wrapper for checkbox + text
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
@@ -63,23 +63,24 @@ function addTodoItem(text, checked = false) {
   const checkmark = document.createElement("span");
   checkmark.className = "checkmark";
 
-  checkboxWrapper.appendChild(checkbox);
-  checkboxWrapper.appendChild(checkmark);
-
   const span = document.createElement("span");
   span.className = "todo-text";
   span.textContent = text;
 
+  label.appendChild(checkbox);
+  label.appendChild(checkmark);
+  label.appendChild(span);
+
   const delBtn = document.createElement("button");
+  delBtn.title = "Delete";
   delBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
   delBtn.onclick = () => {
     li.remove();
     saveTodos();
   };
 
-  li.appendChild(checkboxWrapper);
-  li.appendChild(span);
-  li.appendChild(delBtn);
+  li.appendChild(label); // label holds checkbox + text
+  li.appendChild(delBtn); // delete button aligned right
   todoItemsWrapper.appendChild(li);
 }
 

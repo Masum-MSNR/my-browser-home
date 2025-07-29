@@ -13,6 +13,19 @@
   flex-direction: column;
 }
 
+#todo-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+#todo-list::-webkit-scrollbar-thumb {
+  background-color: #555;
+  border-radius: 4px;
+}
+
+#todo-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 #todo-list li {
   background-color: rgba(255, 255, 255, 0.07);
   padding: 0.6rem 1rem;
@@ -21,7 +34,7 @@
   color: white;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  font-size: 0.95rem;
   box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.05);
   transition: background 0.2s;
   min-height: 48px;
@@ -45,56 +58,66 @@
   color: #ef4444;
 }
 
-.todo-text {
-  flex: 1;
-  text-align: left;
-  word-break: break-word;
+#add-task-button {
+  position: sticky;
+  bottom: 0 !important;
+  z-index: 1;
 }
 
-.custom-checkbox {
-  display: inline-flex;
+#add-task-button:hover {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.todo-item {
+  display: flex;
   align-items: center;
+  gap: 10px;
+  flex: 1;
   cursor: pointer;
-  position: relative;
 }
 
-.custom-checkbox input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-  position: absolute;
+.todo-item input[type="checkbox"] {
+  display: none;
 }
 
-.custom-checkbox .checkmark {
+.todo-item .checkmark {
   width: 18px;
   height: 18px;
   background-color: rgba(255, 255, 255, 0.1);
   border: 2px solid #ccc;
   border-radius: 4px;
   display: inline-block;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.custom-checkbox input:checked+.checkmark {
-  background-color: #2563eb;
-  border-color: #2563eb;
-}
-
-.custom-checkbox .checkmark::after {
+.todo-item .checkmark::after {
   content: "";
   position: absolute;
   display: none;
-  left: 4px;
-  top: 0px;
+  left: 50%;
+  top: 40%;
   width: 5px;
   height: 10px;
   border: solid white;
   border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.custom-checkbox input:checked+.checkmark::after {
+.todo-item input[type="checkbox"]:checked + .checkmark::after {
   display: block;
+}
+
+.todo-item input[type="checkbox"]:checked + .checkmark {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.todo-text {
+  color: white;
+  font-size: 0.95rem;
+  word-break: break-word;
 }
 
 @media (max-width: 768px) {

@@ -90,7 +90,6 @@ function addMailItem(id, email) {
   leftContent.appendChild(links);
 
   const delBtn = document.createElement("button");
-  delBtn.className = "mail-delete-btn";
   delBtn.title = "Delete";
   delBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
   delBtn.onclick = () => {
