@@ -79,7 +79,7 @@ const themes = [
     name: "Theme 20",
     url: "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=1920&q=80"
   },
-  
+
 ];
 
 
@@ -153,7 +153,9 @@ function renderThemeOptions() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const saved = localStorage.getItem("customBg");
-  if (saved) applyTheme(saved);
+  if (saved) { applyTheme(saved) } else {
+    document.body.classList.add("dark-text");
+  };
   renderThemeOptions();
 
   document.getElementById("open-theme-panel").addEventListener("click", () => {
