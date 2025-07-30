@@ -45,6 +45,33 @@ git clone https://github.com/your-username/custom-chrome-tab.git
 
 Follow steps 3-6 from Option 1 above.
 
+## Using Mail Shortcuts
+
+You can quickly access Gmail and Google Drive accounts using the mail shortcut section.
+
+### What is the "ID"?
+
+The ID refers to the account number used in Gmail URLs:
+
+- https://mail.google.com/mail/u/0/#inbox → ID = 0 (first account)
+- https://mail.google.com/mail/u/1/#inbox → ID = 1 (second account)
+
+This number tells the shortcut which Google account to open.
+
+### Steps to Add a Mail Shortcut
+
+1. Click the "+ Add Mail" button
+2. Enter:
+   - ID: a number like 0, 1, 2 (based on your Google accounts)
+   - Email: the Gmail address (just for display)
+3. Click "Add"
+
+Once added, the shortcut will show two links:
+- Gmail → opens inbox for that ID
+- Drive → opens Drive for that ID
+
+Note: You must be logged in to that Google account in your browser for it to open correctly.
+
 ## Development
 
 ### Project Structure
