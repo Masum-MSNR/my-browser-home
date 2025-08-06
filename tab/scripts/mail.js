@@ -1,6 +1,5 @@
 const mailList = document.getElementById("mail-list");
 
-// Ensure wrapper exists
 let mailItemsWrapper = document.getElementById("mail-items-wrapper");
 if (!mailItemsWrapper) {
   mailItemsWrapper = document.createElement("div");
@@ -8,27 +7,16 @@ if (!mailItemsWrapper) {
   mailList.appendChild(mailItemsWrapper);
 }
 
-/* --------------------------------------------
-   STORAGE
----------------------------------------------*/
-
-// Save to localStorage
 function saveMailShortcuts(data) {
   localStorage.setItem("mailShortcuts", JSON.stringify(data));
 }
 
-// Load from localStorage and render
 function loadMailShortcuts() {
   const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
   mailItemsWrapper.innerHTML = "";
   mails.forEach(addMailItem);
 }
 
-/* --------------------------------------------
-   UI HELPERS
----------------------------------------------*/
-
-// Create a clickable icon link (Gmail, Drive, etc.)
 function createIconLink(href, title, iconUrl) {
   const link = document.createElement("a");
   link.href = href;
@@ -47,7 +35,6 @@ function createIconLink(href, title, iconUrl) {
   return link;
 }
 
-// Render one mail entry
 function addMailItem({ email, name, image }) {
   const li = document.createElement("li");
   li.className = "mail-item";
@@ -90,10 +77,6 @@ function addMailItem({ email, name, image }) {
   mailItemsWrapper.appendChild(li);
 }
 
-/* --------------------------------------------
-   GMAIL ACCOUNT SCRAPING (One-Time)
----------------------------------------------*/
-
 async function scanAccountChooserPageAndSave() {
   try {
     const response = await fetch("https://accounts.google.com/AccountChooser?continue=https://mail.google.com");
@@ -129,9 +112,6 @@ async function scanAccountChooserPageAndSave() {
   }
 }
 
-/* --------------------------------------------
-   SCROLL INDICATOR HANDLING
----------------------------------------------*/
 function updateMailScrollIndicator() {
   const list = document.getElementById("mail-list");
   const indicator = document.getElementById("mail-scroll-indicator");
@@ -150,11 +130,7 @@ function updateMailScrollIndicator() {
 
 document.getElementById("mail-list").addEventListener("scroll", updateMailScrollIndicator);
 window.addEventListener("resize", updateMailScrollIndicator);
-setTimeout(updateMailScrollIndicator, 100); // After content loads
-
-/* --------------------------------------------
-   INITIALIZE
----------------------------------------------*/
+setTimeout(updateMailScrollIndicator, 100);
 
 loadMailShortcuts();
 scanAccountChooserPageAndSave();
