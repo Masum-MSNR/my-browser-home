@@ -47,9 +47,12 @@
 }
 
 @keyframes bounce {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(4px);
   }
@@ -88,6 +91,7 @@
   position: sticky;
   bottom: 0 !important;
   z-index: 1;
+  backdrop-filter: blur(10px);
 }
 
 .todo-item {
@@ -127,11 +131,11 @@
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.todo-item input[type="checkbox"]:checked + .checkmark::after {
+.todo-item input[type="checkbox"]:checked+.checkmark::after {
   display: block;
 }
 
-.todo-item input[type="checkbox"]:checked + .checkmark {
+.todo-item input[type="checkbox"]:checked+.checkmark {
   background-color: #2563eb;
   border-color: #2563eb;
 }
