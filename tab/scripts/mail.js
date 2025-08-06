@@ -7,6 +7,33 @@ if (!mailItemsWrapper) {
   mailList.appendChild(mailItemsWrapper);
 }
 
+const addMailButton = document.createElement("li");
+addMailButton.id = "add-mail-button";
+addMailButton.className = "add-mail-item";
+addMailButton.style.cursor = "pointer";
+addMailButton.style.userSelect = "none";
+
+const mailLabel = document.createElement("span");
+mailLabel.textContent = "+ Add Mail";
+
+
+const mailInvisibleBtn = document.createElement("button");
+mailInvisibleBtn.innerHTML = "&times;";
+mailInvisibleBtn.style.visibility = "hidden";
+mailInvisibleBtn.disabled = true;
+
+addMailButton.appendChild(mailLabel);
+addMailButton.appendChild(mailInvisibleBtn);
+
+addMailButton.onclick = () => {
+  window.open(
+    "https://accounts.google.com/v3/signin/identifier?continue=https://www.google.com?hl=en-US&ec=GAlA8wE&hl=en&flowName=GlifWebSignIn&flowEntry=AddSession",
+    "_blank"
+  );
+};
+
+mailList.appendChild(addMailButton);
+
 function saveMailShortcuts(data) {
   localStorage.setItem("mailShortcuts", JSON.stringify(data));
 }

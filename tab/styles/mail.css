@@ -23,7 +23,7 @@
 
 #mail-scroll-indicator {
   position: absolute;
-  bottom: 4px;
+  bottom: 52px;
   left: calc(50% - 20px);
   transform: translate(-50%, 0);
   width: 40px;
@@ -48,9 +48,12 @@
 }
 
 @keyframes bounce {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(4px);
   }
@@ -69,6 +72,15 @@
   box-shadow: inset 0 0 3px rgba(255, 255, 255, 0.05);
   transition: background 0.2s;
   min-height: 64px;
+}
+
+#add-mail-button {
+  position: sticky;
+  bottom: 0 !important;
+  z-index: 1;
+  backdrop-filter: blur(10px);
+  align-items: center !important;
+  min-height: 48px !important;
 }
 
 .mail-left {
