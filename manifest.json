@@ -10,7 +10,9 @@
     "storage",
     "favicon",
     "tabs",
-    "webNavigation"
+    "webNavigation",
+    "identity",
+    "identity.email"
   ],
   "host_permissions": [
     "<all_urls>"
