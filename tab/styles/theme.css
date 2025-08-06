@@ -41,9 +41,6 @@ body.light-text {
     background-color: var(--overlay-color);
 }
 
-.todo-wrapper li:hover,
-#mail-list li:hover,
-#todo-list li:hover,
 .shortcut-icon-wrapper:hover,
 .add-shortcut-btn .add-icon:hover {
     background-color: var(--hover-overlay-color);
@@ -85,18 +82,18 @@ body.light-text {
 }
 
 .theme-panel {
-  position: fixed;
-  top: 0;
-  right: -320px;
-  width: 320px;
-  height: 100vh;
-  background: #1e293b;
-  color: white;
-  z-index: 1000;
-  padding: 0 1rem 1rem 1rem;
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
-  transition: right 0.3s ease-in-out;
-  overflow-y: auto;
+    position: fixed;
+    top: 0;
+    right: -320px;
+    width: 320px;
+    height: 100vh;
+    background: #1e293b;
+    color: white;
+    z-index: 1000;
+    padding: 0 1rem 1rem 1rem;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.5);
+    transition: right 0.3s ease-in-out;
+    overflow-y: auto;
 }
 
 .theme-panel::-webkit-scrollbar {
