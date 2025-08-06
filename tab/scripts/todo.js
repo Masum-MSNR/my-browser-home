@@ -37,17 +37,18 @@ function loadTodos() {
   todoItemsWrapper.innerHTML = "";
   const todos = JSON.parse(localStorage.getItem("todos")) || [];
   todos.forEach(({ text, checked }) => addTodoItem(text, checked));
+  updateTodoScrollIndicator();
 }
 
 function saveTodos() {
-  const todos = Array.from(todoItemsWrapper.children).map(li => {
-    return {
-      text: li.querySelector(".todo-text").textContent.trim(),
-      checked: li.querySelector("input[type='checkbox']").checked
-    };
-  });
+  const todos = Array.from(todoItemsWrapper.children).map(li => ({
+    text: li.querySelector(".todo-text").textContent.trim(),
+    checked: li.querySelector("input[type='checkbox']").checked
+  }));
   localStorage.setItem("todos", JSON.stringify(todos));
+  updateTodoScrollIndicator();
 }
+
 function addTodoItem(text, checked = false) {
   const li = document.createElement("li");
 
@@ -116,6 +117,31 @@ function resetCheckboxes() {
   localStorage.setItem("todos", JSON.stringify(resetTodos));
   loadTodos();
 }
+
+function updateTodoScrollIndicator() {
+  const list = document.getElementById("todo-list");
+  const indicator = document.getElementById("todo-scroll-indicator");
+  const addTaskBtn = document.getElementById("add-task-button");
+
+  if (!list || !indicator || !addTaskBtn) return;
+
+  const isScrollable = list.scrollHeight > list.clientHeight;
+  const isAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
+
+  indicator.style.display = (isScrollable && !isAtBottom) ? "flex" : "none";
+
+  // if (isScrollable && !isAtBottom) {
+  //   const rawOverlay = getComputedStyle(document.body).getPropertyValue('--overlay-color').trim();
+  //   const solidHex = rgbaToSolidHex(rawOverlay);
+  //   addTaskBtn.style.backgroundColor = "#606060";
+  // } else {
+  //   addTaskBtn.style.backgroundColor = "";
+  // }
+}
+
+document.getElementById("todo-list").addEventListener("scroll", updateTodoScrollIndicator);
+window.addEventListener("resize", updateTodoScrollIndicator);
+setTimeout(updateTodoScrollIndicator, 100);
 
 loadTodos();
 scheduleDailyReset();
