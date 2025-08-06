@@ -8,19 +8,27 @@ if (!mailItemsWrapper) {
   mailList.appendChild(mailItemsWrapper);
 }
 
+/* --------------------------------------------
+   STORAGE
+---------------------------------------------*/
+
 // Save to localStorage
 function saveMailShortcuts(data) {
   localStorage.setItem("mailShortcuts", JSON.stringify(data));
 }
 
-// Load from localStorage
+// Load from localStorage and render
 function loadMailShortcuts() {
   const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
   mailItemsWrapper.innerHTML = "";
   mails.forEach(addMailItem);
 }
 
-// Create icon-based link
+/* --------------------------------------------
+   UI HELPERS
+---------------------------------------------*/
+
+// Create a clickable icon link (Gmail, Drive, etc.)
 function createIconLink(href, title, iconUrl) {
   const link = document.createElement("a");
   link.href = href;
@@ -39,7 +47,7 @@ function createIconLink(href, title, iconUrl) {
   return link;
 }
 
-// Render a single mail account row
+// Render one mail entry
 function addMailItem({ email, name, image }) {
   const li = document.createElement("li");
   li.className = "mail-item";
@@ -79,17 +87,20 @@ function addMailItem({ email, name, image }) {
   leftContent.appendChild(imageEl);
   leftContent.appendChild(infoWrapper);
   li.appendChild(leftContent);
-
   mailItemsWrapper.appendChild(li);
 }
 
-// Manually extract account info from AccountChooser page
+/* --------------------------------------------
+   GMAIL ACCOUNT SCRAPING (One-Time)
+---------------------------------------------*/
+
 async function scanAccountChooserPageAndSave() {
   try {
     const response = await fetch("https://accounts.google.com/AccountChooser?continue=https://mail.google.com");
     const htmlText = await response.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlText, 'text/html');
+
     const elements = doc.querySelectorAll('.VV3oRb.YZVTmd.SmR8');
 
     const result = Array.from(elements).map(el => {
@@ -107,7 +118,7 @@ async function scanAccountChooserPageAndSave() {
       return null;
     }).filter(Boolean);
 
-    if (result.length) {
+    if (result.length > 0) {
       saveMailShortcuts(result);
       loadMailShortcuts();
     } else {
@@ -118,6 +129,32 @@ async function scanAccountChooserPageAndSave() {
   }
 }
 
-// Initial load
+/* --------------------------------------------
+   SCROLL INDICATOR HANDLING
+---------------------------------------------*/
+function updateMailScrollIndicator() {
+  const list = document.getElementById("mail-list");
+  const indicator = document.getElementById("mail-scroll-indicator");
+
+  if (!list || !indicator) return;
+
+  const isScrollable = list.scrollHeight > list.clientHeight;
+  const isAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
+
+  if (isScrollable && !isAtBottom) {
+    indicator.style.display = "flex";
+  } else {
+    indicator.style.display = "none";
+  }
+}
+
+document.getElementById("mail-list").addEventListener("scroll", updateMailScrollIndicator);
+window.addEventListener("resize", updateMailScrollIndicator);
+setTimeout(updateMailScrollIndicator, 100); // After content loads
+
+/* --------------------------------------------
+   INITIALIZE
+---------------------------------------------*/
+
 loadMailShortcuts();
 scanAccountChooserPageAndSave();

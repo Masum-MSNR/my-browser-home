@@ -1,5 +1,6 @@
 .mail-wrapper {
   text-align: left;
+  position: relative;
   width: 100%;
 }
 
@@ -10,23 +11,49 @@
   margin: 0;
   overflow-y: auto;
   max-height: calc(100vh - 50vh - 2rem);
-  scrollbar-width: thin;
-  scrollbar-color: #888 #1e293b;
   display: flex;
   flex-direction: column;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 #mail-list::-webkit-scrollbar {
-  width: 6px;
+  display: none;
 }
 
-#mail-list::-webkit-scrollbar-thumb {
-  background-color: var(--overlay-color);
-  border-radius: 4px;
+#mail-scroll-indicator {
+  position: absolute;
+  bottom: 4px;
+  left: calc(50% - 20px);
+  transform: translate(-50%, 0);
+  width: 40px;
+  height: 40px;
+  background: var(--overlay-color);
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  animation: bounce 1.5s infinite ease-in-out;
+  z-index: 1;
+  pointer-events: none;
 }
 
-#mail-list::-webkit-scrollbar-track {
-  background: transparent;
+.scroll-arrow {
+  width: 12px;
+  height: 12px;
+  border-left: 3px solid white;
+  border-bottom: 3px solid white;
+  transform: rotate(-45deg);
+  opacity: 0.85;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
 }
 
 #mail-list li {

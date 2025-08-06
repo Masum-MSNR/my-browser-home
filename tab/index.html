@@ -5,8 +5,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Chrome Tab</title>
+
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <link rel="stylesheet" href="styles/base.css">
     <link rel="stylesheet" href="styles/base.css" />
     <link rel="stylesheet" href="styles/clock.css" />
     <link rel="stylesheet" href="styles/search.css" />
@@ -16,17 +17,16 @@
     <link rel="stylesheet" href="styles/shortcuts.css" />
     <link rel="stylesheet" href="styles/modal.css" />
     <link rel="stylesheet" href="styles/theme.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 
 <body>
     <div class="container">
-        <!-- Palette Icon to Open Panel -->
+        <!-- Theme Button -->
         <button id="open-theme-panel" class="theme-toggle-icon" title="Change Theme">
             <i class="fas fa-palette"></i>
         </button>
 
-        <!-- Theme Slide Panel -->
+        <!-- Theme Panel -->
         <div id="theme-panel" class="theme-panel">
             <div class="theme-panel-header">
                 <h3>Select a Theme</h3>
@@ -35,16 +35,15 @@
             <div class="theme-options" id="theme-options"></div>
         </div>
 
-
-
-        <!-- Time Display -->
+        <!-- Clock -->
         <div class="time-container">
             <div class="digital-display">
                 <div class="time" id="time">12<span class="colon">:</span>48 PM</div>
-                <div class="date" id="date">FRI • JUL 25 • 2025</div>
+                <div class="date" id="date">THU • AUG 07 • 2025</div>
             </div>
         </div>
-        <!-- Google Search Box -->
+
+        <!-- Search -->
         <div class="search-container">
             <div class="search-wrapper">
                 <input type="text" class="search-box" placeholder="Search Google..." id="searchInput"
@@ -53,27 +52,32 @@
             </div>
         </div>
 
-        <!-- Responsive 3-Block Layout -->
+        <!-- Layout -->
         <div class="block-layout">
             <div class="block block-left">
                 <div class="todo-wrapper">
                     <ul id="todo-list"></ul>
                 </div>
-
             </div>
+
             <div class="block block-middle">
                 <div class="shortcuts-wrapper">
                     <div id="shortcut-grid" class="shortcut-grid"></div>
                 </div>
             </div>
+
             <div class="block block-right">
                 <div class="mail-wrapper">
-                    <ul id="mail-list"></ul>
+                    <ul id="mail-list">
+                    </ul>
+                      <div id="mail-scroll-indicator"><i class="scroll-arrow"></i></div>
+
                 </div>
             </div>
         </div>
-
     </div>
+
+    <!-- Todo Modal -->
     <div id="todo-dialog" class="modal">
         <div class="modal-content">
             <button class="modal-close" id="close-todo-dialog">&times;</button>
@@ -85,6 +89,7 @@
         </div>
     </div>
 
+    <!-- Shortcut Modal -->
     <div id="shortcut-dialog" class="modal">
         <div class="modal-content">
             <button class="modal-close" id="close-shortcut-dialog">&times;</button>
@@ -100,7 +105,7 @@
         </div>
     </div>
 
-
+    <!-- Mail Modal (legacy/manual add) -->
     <div id="mail-dialog" class="modal">
         <div class="modal-content">
             <button class="modal-close" id="close-mail-dialog">&times;</button>
@@ -113,7 +118,7 @@
         </div>
     </div>
 
-
+    <!-- Scripts -->
     <script src="scripts/clock.js"></script>
     <script src="scripts/search.js"></script>
     <script src="scripts/todo.js"></script>
