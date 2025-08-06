@@ -14,7 +14,7 @@ addMailButton.style.cursor = "pointer";
 addMailButton.style.userSelect = "none";
 
 const mailLabel = document.createElement("span");
-mailLabel.textContent = "+ Add Mail";
+mailLabel.textContent = "+ Add Gmail";
 
 
 const mailInvisibleBtn = document.createElement("button");

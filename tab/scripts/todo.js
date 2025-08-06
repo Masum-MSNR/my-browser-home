@@ -129,14 +129,6 @@ function updateTodoScrollIndicator() {
   const isAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
 
   indicator.style.display = (isScrollable && !isAtBottom) ? "flex" : "none";
-
-  // if (isScrollable && !isAtBottom) {
-  //   const rawOverlay = getComputedStyle(document.body).getPropertyValue('--overlay-color').trim();
-  //   const solidHex = rgbaToSolidHex(rawOverlay);
-  //   addTaskBtn.style.backgroundColor = "#606060";
-  // } else {
-  //   addTaskBtn.style.backgroundColor = "";
-  // }
 }
 
 document.getElementById("todo-list").addEventListener("scroll", updateTodoScrollIndicator);

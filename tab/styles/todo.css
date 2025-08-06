@@ -92,6 +92,7 @@
   bottom: 0 !important;
   z-index: 1;
   backdrop-filter: blur(10px);
+  margin-bottom: 0 !important;
 }
 
 .todo-item {

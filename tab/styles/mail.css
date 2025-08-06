@@ -81,6 +81,7 @@
   backdrop-filter: blur(10px);
   align-items: center !important;
   min-height: 48px !important;
+  margin-bottom: 0 !important;
 }
 
 .mail-left {
