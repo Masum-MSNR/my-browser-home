@@ -14,6 +14,8 @@
   flex-direction: column;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  border-radius: 8px;
+  clip-path: inset(0 round 8px);
 }
 
 #todo-list::-webkit-scrollbar {
@@ -62,7 +64,6 @@
   background-color: var(--overlay-color);
   padding: 0.6rem 1rem;
   margin-bottom: 0.6rem;
-  margin-right: 0.5rem;
   border-radius: 8px;
   color: white;
   display: flex;
