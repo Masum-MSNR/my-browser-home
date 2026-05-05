@@ -1,6 +1,12 @@
 const mailDropdownBtn = document.getElementById("mail-dropdown-btn");
 const mailDropdown = document.getElementById("mail-dropdown");
 const mailDropdownList = document.getElementById("mail-dropdown-list");
+const mailDropdownHeader = document.querySelector(".mail-dropdown-header");
+
+function closeDropdown() {
+    mailDropdown.classList.remove("open");
+    mailDropdownBtn.classList.remove("active");
+}
 
 mailDropdownBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -10,15 +16,13 @@ mailDropdownBtn.addEventListener("click", (e) => {
 
 document.addEventListener("click", (e) => {
     if (!mailDropdown.contains(e.target) && !mailDropdownBtn.contains(e.target)) {
-        mailDropdown.classList.remove("open");
-        mailDropdownBtn.classList.remove("active");
+        closeDropdown();
     }
 });
 
 document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && mailDropdown.classList.contains("open")) {
-        mailDropdown.classList.remove("open");
-        mailDropdownBtn.classList.remove("active");
+        closeDropdown();
     }
 });
 
@@ -26,27 +30,11 @@ function saveMailShortcuts(data) {
     localStorage.setItem("mailShortcuts", JSON.stringify(data));
 }
 
-function updateAccountBadge() {
-    const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
-    let badge = mailDropdownBtn.querySelector(".account-badge");
-    if (mails.length > 0) {
-        if (!badge) {
-            badge = document.createElement("span");
-            badge.className = "account-badge";
-            mailDropdownBtn.appendChild(badge);
-        }
-        badge.textContent = mails.length;
-    } else if (badge) {
-        badge.remove();
-    }
-}
-
 function loadMailShortcuts() {
     const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
     mailDropdownList.innerHTML = "";
     mails.forEach(addMailItem);
     addAddMailButton();
-    updateAccountBadge();
 }
 
 function createServiceLink(href, title, iconUrl) {
@@ -100,6 +88,22 @@ function addMailItem({ email, name, image }) {
     services.appendChild(createServiceLink(prefix + "https://meet.google.com", "Meet", "https://www.gstatic.com/images/branding/product/2x/hh_meet_48dp.png"));
     services.appendChild(createServiceLink(prefix + "https://docs.google.com/document/u/0/", "Docs", "https://ssl.gstatic.com/docs/doclist/images/icon_10_document_list.png"));
     services.appendChild(createServiceLink(prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets", "https://ssl.gstatic.com/docs/doclist/images/icon_10_spreadsheet_list.png"));
+
+    const cloudLink = document.createElement("a");
+    cloudLink.className = "service-link";
+    cloudLink.href = prefix + "https://console.cloud.google.com/";
+    cloudLink.title = "Cloud";
+    cloudLink.target = "_blank";
+
+    const cloudIcon = document.createElement("i");
+    cloudIcon.className = "fas fa-cloud";
+
+    const cloudLabel = document.createElement("span");
+    cloudLabel.textContent = "Cloud";
+
+    cloudLink.appendChild(cloudIcon);
+    cloudLink.appendChild(cloudLabel);
+    services.appendChild(cloudLink);
 
     info.appendChild(nameEl);
     info.appendChild(emailEl);
@@ -167,6 +171,15 @@ async function scanAccountChooserPageAndSave() {
     } catch (err) {
         console.error("Failed to fetch account chooser page:", err);
     }
+}
+
+if (mailDropdownHeader) {
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "mail-dropdown-close";
+    closeBtn.innerHTML = "&times;";
+    closeBtn.title = "Close";
+    closeBtn.addEventListener("click", closeDropdown);
+    mailDropdownHeader.appendChild(closeBtn);
 }
 
 loadMailShortcuts();
