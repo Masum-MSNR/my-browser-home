@@ -34,7 +34,6 @@ function loadMailShortcuts() {
     const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
     mailDropdownList.innerHTML = "";
     mails.forEach(addMailItem);
-    addAddMailButton();
 }
 
 function createServiceLink(href, title, iconUrl) {
@@ -114,30 +113,6 @@ function addMailItem({ email, name, image }) {
     mailDropdownList.appendChild(li);
 }
 
-function addAddMailButton() {
-    const li = document.createElement("li");
-    li.className = "mail-add-account";
-
-    const icon = document.createElement("span");
-    icon.className = "add-account-icon";
-    icon.innerHTML = '<i class="fas fa-plus"></i>';
-
-    const text = document.createElement("span");
-    text.textContent = "Add another account";
-
-    li.appendChild(icon);
-    li.appendChild(text);
-
-    li.addEventListener("click", () => {
-        window.open(
-            "https://accounts.google.com/v3/signin/identifier?continue=https://www.google.com?hl=en-US&ec=GAlA8wE&hl=en&flowName=GlifWebSignIn&flowEntry=AddSession",
-            "_blank"
-        );
-    });
-
-    mailDropdownList.appendChild(li);
-}
-
 async function scanAccountChooserPageAndSave() {
     try {
         const response = await fetch("https://accounts.google.com/AccountChooser?continue=https://mail.google.com");
@@ -174,12 +149,16 @@ async function scanAccountChooserPageAndSave() {
 }
 
 if (mailDropdownHeader) {
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "mail-dropdown-close";
-    closeBtn.innerHTML = "&times;";
-    closeBtn.title = "Close";
-    closeBtn.addEventListener("click", closeDropdown);
-    mailDropdownHeader.appendChild(closeBtn);
+    const addBtn = document.createElement("button");
+    addBtn.className = "mail-add-account";
+    addBtn.innerHTML = '<span class="add-account-icon"><i class="fas fa-plus"></i></span><span>Add another account</span>';
+    addBtn.addEventListener("click", () => {
+        window.open(
+            "https://accounts.google.com/v3/signin/identifier?continue=https://www.google.com?hl=en-US&ec=GAlA8wE&hl=en&flowName=GlifWebSignIn&flowEntry=AddSession",
+            "_blank"
+        );
+    });
+    mailDropdownHeader.appendChild(addBtn);
 }
 
 loadMailShortcuts();
