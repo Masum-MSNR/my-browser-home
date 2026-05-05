@@ -74,6 +74,26 @@ body.light-text {
     z-index: 100;
 }
 
+.corner-btn-sync {
+    position: fixed;
+    top: 1.25rem;
+    right: 4.6rem;
+    z-index: 100;
+}
+
+.corner-btn-sync.syncing i {
+    animation: spin 1s linear infinite;
+}
+
+.corner-btn-sync.synced {
+    color: #4ade80;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .theme-panel {
     position: fixed;
     top: 0;
