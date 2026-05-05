@@ -81,6 +81,24 @@ body.light-text {
     z-index: 100;
 }
 
+.sync-user-badge {
+    display: none;
+    position: fixed;
+    top: 1.6rem;
+    right: 7.2rem;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 0.3rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
 .corner-btn-sync.syncing i {
     animation: spin 1s linear infinite;
 }

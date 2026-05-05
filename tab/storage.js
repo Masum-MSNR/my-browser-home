@@ -16,55 +16,44 @@ function syncSet(obj) {
     const btn = document.getElementById("sync-btn");
     if (!btn) return;
 
-    let infoBubble = document.getElementById("sync-info-bubble");
-    if (!infoBubble) {
-        infoBubble = document.createElement("div");
-        infoBubble.id = "sync-info-bubble";
-        infoBubble.className = "sync-info-bubble";
-        document.body.appendChild(infoBubble);
+    let bubble = document.getElementById("sync-info-bubble");
+    if (!bubble) {
+        bubble = document.createElement("div");
+        bubble.id = "sync-info-bubble";
+        bubble.className = "sync-info-bubble";
+        document.body.appendChild(bubble);
     }
 
     function showInfo(text, status) {
-        infoBubble.innerHTML = text;
-        infoBubble.className = "sync-info-bubble " + status;
-        infoBubble.style.display = "block";
-        clearTimeout(infoBubble._timer);
-    }
-
-    function hideInfo() {
-        infoBubble._timer = setTimeout(() => {
-            infoBubble.style.display = "none";
-        }, 5000);
+        bubble.innerHTML = text;
+        bubble.className = "sync-info-bubble " + status;
+        bubble.style.display = "block";
+        clearTimeout(bubble._timer);
+        bubble._timer = setTimeout(() => { bubble.style.display = "none"; }, 4000);
     }
 
     btn.addEventListener("click", async () => {
+        if (!auth.currentUser) {
+            showInfo("Signing in with Google...", "");
+            await signIn();
+            return;
+        }
+
         btn.classList.add("syncing");
-        btn.classList.remove("synced");
 
         try {
-            await fbSaveAll();
+            const shortcuts = JSON.parse(localStorage.getItem("shortcuts") || "[]");
+            const mailShortcuts = JSON.parse(localStorage.getItem("mailShortcuts") || "[]");
+            const customBg = localStorage.getItem("customBg");
+
+            await saveUserData({ shortcuts, mailShortcuts, customBg });
+            await syncSet({ shortcuts, mailShortcuts, customBg });
             btn.classList.add("synced");
-            showInfo(
-                `Synced to Firebase &#10003;<br><small>ID: ${fbSyncId.slice(0,8)}&hellip; <button class="sync-copy-btn" onclick="navigator.clipboard.writeText('${fbSyncId}')" title="Copy full ID">&#128203;</button><br>Use same ID on other devices to link</small>`,
-                "synced"
-            );
-            hideInfo();
+            showInfo("Synced &#10003;", "synced");
         } catch (err) {
-            btn.classList.remove("synced");
-            showInfo("Sync failed: " + err.message, "error");
-            hideInfo();
+            showInfo(err.message, "error");
         }
 
         btn.classList.remove("syncing");
-    });
-
-    btn.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        const newId = prompt("Enter sync ID from another device:", fbSyncId);
-        if (newId && newId.length >= 8) {
-            localStorage.setItem("syncId", newId.trim());
-            showInfo("Sync ID set. Click sync to pull data.", "synced");
-            hideInfo();
-        }
     });
 })();

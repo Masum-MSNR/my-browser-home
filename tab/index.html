@@ -21,9 +21,10 @@
 <body>
     <div class="container">
         <!-- Sync + Mail buttons (top right) -->
-        <button id="sync-btn" class="corner-btn corner-btn-sync" title="Sync">
+        <button id="sync-btn" class="corner-btn corner-btn-sync" title="Sign in to sync">
             <i class="fas fa-cloud"></i>
         </button>
+        <span id="sync-user" class="sync-user-badge"></span>
         <div id="mail-corner" class="mail-corner">
             <button id="mail-dropdown-btn" class="corner-btn" title="Mail">
                 <i class="fas fa-envelope"></i>
@@ -91,7 +92,10 @@
     </div>
 
     <!-- Scripts -->
-    <script src="./firebase-rest.js"></script>
+    <script src="lib/firebase-app-compat.js"></script>
+    <script src="lib/firebase-auth-compat.js"></script>
+    <script src="lib/firebase-firestore-compat.js"></script>
+    <script src="./firebase.js"></script>
     <script src="./storage.js"></script>
     <script src="scripts/clock.js"></script>
     <script src="scripts/search.js"></script>
