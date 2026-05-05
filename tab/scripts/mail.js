@@ -151,7 +151,7 @@ async function scanAccountChooserPageAndSave() {
 if (mailDropdownHeader) {
     const addBtn = document.createElement("button");
     addBtn.className = "mail-add-account";
-    addBtn.innerHTML = '<span class="add-account-icon"><i class="fas fa-plus"></i></span><span>Add another account</span>';
+    addBtn.innerHTML = '<span class="add-account-icon"><i class="fas fa-plus"></i></span>';
     addBtn.addEventListener("click", () => {
         window.open(
             "https://accounts.google.com/v3/signin/identifier?continue=https://www.google.com?hl=en-US&ec=GAlA8wE&hl=en&flowName=GlifWebSignIn&flowEntry=AddSession",
