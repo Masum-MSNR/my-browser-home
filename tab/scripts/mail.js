@@ -4,12 +4,21 @@ const mailDropdownList = document.getElementById("mail-dropdown-list");
 
 mailDropdownBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    mailDropdown.classList.toggle("open");
+    const isOpen = mailDropdown.classList.toggle("open");
+    mailDropdownBtn.classList.toggle("active", isOpen);
 });
 
 document.addEventListener("click", (e) => {
     if (!mailDropdown.contains(e.target) && !mailDropdownBtn.contains(e.target)) {
         mailDropdown.classList.remove("open");
+        mailDropdownBtn.classList.remove("active");
+    }
+});
+
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && mailDropdown.classList.contains("open")) {
+        mailDropdown.classList.remove("open");
+        mailDropdownBtn.classList.remove("active");
     }
 });
 
@@ -17,15 +26,32 @@ function saveMailShortcuts(data) {
     localStorage.setItem("mailShortcuts", JSON.stringify(data));
 }
 
+function updateAccountBadge() {
+    const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
+    let badge = mailDropdownBtn.querySelector(".account-badge");
+    if (mails.length > 0) {
+        if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "account-badge";
+            mailDropdownBtn.appendChild(badge);
+        }
+        badge.textContent = mails.length;
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
 function loadMailShortcuts() {
     const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
     mailDropdownList.innerHTML = "";
     mails.forEach(addMailItem);
     addAddMailButton();
+    updateAccountBadge();
 }
 
-function createIconLink(href, title, iconUrl) {
+function createServiceLink(href, title, iconUrl) {
     const link = document.createElement("a");
+    link.className = "service-link";
     link.href = href;
     link.title = title;
     link.target = "_blank";
@@ -33,61 +59,70 @@ function createIconLink(href, title, iconUrl) {
     const img = document.createElement("img");
     img.src = iconUrl;
     img.alt = title;
-    img.width = 18;
-    img.height = 18;
-    img.style.borderRadius = "4px";
-    img.style.objectFit = "contain";
+    img.width = 20;
+    img.height = 20;
+
+    const label = document.createElement("span");
+    label.textContent = title;
 
     link.appendChild(img);
+    link.appendChild(label);
     return link;
 }
 
 function addMailItem({ email, name, image }) {
     const li = document.createElement("li");
-    li.className = "mail-dropdown-item";
+    li.className = "mail-account-card";
 
-    const leftContent = document.createElement("div");
-    leftContent.className = "mail-left";
+    const avatar = document.createElement("img");
+    avatar.className = "account-avatar";
+    avatar.src = image;
+    avatar.alt = name;
 
-    const imageEl = document.createElement("img");
-    imageEl.src = image;
-    imageEl.alt = name;
+    const info = document.createElement("div");
+    info.className = "account-info";
 
-    const nameDiv = document.createElement("div");
-    nameDiv.className = "name";
-    nameDiv.textContent = name;
+    const nameEl = document.createElement("div");
+    nameEl.className = "account-name";
+    nameEl.textContent = name;
 
-    const emailSpan = document.createElement("div");
-    emailSpan.className = "email";
-    emailSpan.textContent = email;
+    const emailEl = document.createElement("div");
+    emailEl.className = "account-email";
+    emailEl.textContent = email;
 
-    const accountPrefix = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=`;
+    const services = document.createElement("div");
+    services.className = "account-services";
 
-    const links = document.createElement("div");
-    links.className = "mail-links";
+    const prefix = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=`;
 
-    links.appendChild(createIconLink(`${accountPrefix}https://mail.google.com`, "Gmail", "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico"));
-    links.appendChild(createIconLink(`${accountPrefix}https://drive.google.com/drive/my-drive`, "Drive", "https://ssl.gstatic.com/docs/doclist/images/drive_icon_32.png"));
-    links.appendChild(createIconLink(`${accountPrefix}https://meet.google.com`, "Meet", "https://www.gstatic.com/images/branding/product/2x/hh_meet_48dp.png"));
-    links.appendChild(createIconLink(`${accountPrefix}https://docs.google.com/document/u/0/`, "Docs", "https://ssl.gstatic.com/docs/doclist/images/icon_10_document_list.png"));
-    links.appendChild(createIconLink(`${accountPrefix}https://docs.google.com/spreadsheets/u/0/`, "Sheets", "https://ssl.gstatic.com/docs/doclist/images/icon_10_spreadsheet_list.png"));
+    services.appendChild(createServiceLink(prefix + "https://mail.google.com", "Gmail", "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico"));
+    services.appendChild(createServiceLink(prefix + "https://drive.google.com/drive/my-drive", "Drive", "https://ssl.gstatic.com/docs/doclist/images/drive_icon_32.png"));
+    services.appendChild(createServiceLink(prefix + "https://meet.google.com", "Meet", "https://www.gstatic.com/images/branding/product/2x/hh_meet_48dp.png"));
+    services.appendChild(createServiceLink(prefix + "https://docs.google.com/document/u/0/", "Docs", "https://ssl.gstatic.com/docs/doclist/images/icon_10_document_list.png"));
+    services.appendChild(createServiceLink(prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets", "https://ssl.gstatic.com/docs/doclist/images/icon_10_spreadsheet_list.png"));
 
-    const infoWrapper = document.createElement("div");
-    infoWrapper.className = "mail-info";
-    infoWrapper.appendChild(nameDiv);
-    infoWrapper.appendChild(emailSpan);
-    infoWrapper.appendChild(links);
+    info.appendChild(nameEl);
+    info.appendChild(emailEl);
+    info.appendChild(services);
 
-    leftContent.appendChild(imageEl);
-    leftContent.appendChild(infoWrapper);
-    li.appendChild(leftContent);
+    li.appendChild(avatar);
+    li.appendChild(info);
     mailDropdownList.appendChild(li);
 }
 
 function addAddMailButton() {
     const li = document.createElement("li");
-    li.className = "mail-dropdown-item add-mail-button";
-    li.textContent = "+ Add Gmail";
+    li.className = "mail-add-account";
+
+    const icon = document.createElement("span");
+    icon.className = "add-account-icon";
+    icon.innerHTML = '<i class="fas fa-plus"></i>';
+
+    const text = document.createElement("span");
+    text.textContent = "Add another account";
+
+    li.appendChild(icon);
+    li.appendChild(text);
 
     li.addEventListener("click", () => {
         window.open(
