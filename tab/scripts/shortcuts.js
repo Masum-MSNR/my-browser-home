@@ -42,7 +42,9 @@ async function setShortcuts(val) {
 
 async function renderShortcuts() {
   shortcutList.innerHTML = "";
-  const shortcuts = await getShortcuts();
+  var shortcuts = await getShortcuts();
+  if (!Array.isArray(shortcuts)) shortcuts = [];
+  shortcuts = shortcuts.filter(function (s) { return s && s.url; });
 
   for (const [index, shortcut] of shortcuts.entries()) {
     const div = document.createElement("div");
