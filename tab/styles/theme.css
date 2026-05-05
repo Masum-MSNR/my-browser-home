@@ -84,7 +84,8 @@ body.light-text {
     color: white;
     z-index: 1000;
     padding: 0 1rem 1rem 1rem;
-    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.5);
+    border-radius: 0 12px 12px 0;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
     transition: left 0.3s ease-in-out;
     overflow-y: auto;
 }
