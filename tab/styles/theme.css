@@ -18,12 +18,8 @@ body.light-text {
     --hover-overlay-color: rgba(255, 255, 255, 0.4);
 }
 
-.todo-text,
 .shortcut-label,
-.mail-left,
-#todo-list li,
-#mail-list li,
-.add-shortcut-btn {
+.mail-left {
     color: var(--text-color);
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
     font-weight: 500;
@@ -35,9 +31,7 @@ body.light-text {
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
 }
 
-.todo-wrapper li,
-#mail-list li,
-#todo-list li {
+.mail-dropdown-item {
     background-color: var(--overlay-color);
 }
 
@@ -56,10 +50,7 @@ body.light-text {
     color: var(--search-placeholder-text-color);
 }
 
-.theme-toggle-icon {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
+.corner-btn {
     background-color: var(--overlay-color);
     border: none;
     border-radius: 50%;
@@ -72,13 +63,19 @@ body.light-text {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 999;
     transition: background-color 0.2s ease, transform 0.2s ease;
 }
 
-.theme-toggle-icon:hover {
+.corner-btn:hover {
     background-color: var(--hover-overlay-color);
     transform: scale(1.1);
+}
+
+.corner-btn-theme {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 100;
 }
 
 .theme-panel {
@@ -108,7 +105,6 @@ body.light-text {
 .theme-panel::-webkit-scrollbar-track {
     background: transparent;
 }
-
 
 .theme-panel.open {
     right: 0;

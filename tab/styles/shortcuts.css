@@ -1,49 +1,61 @@
-.shortcuts-wrapper {
-  text-align: left;
-  width: 100%;
-}
-
 .shortcut-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-  gap: 1.25rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 1.25rem;
 }
 
 .shortcut-item {
-  position: relative;
-  text-align: center;
-  cursor: pointer;
-  text-decoration: none;
+    position: relative;
+    text-align: center;
+    cursor: grab;
+    text-decoration: none;
+    transition: opacity 0.2s, transform 0.2s;
+    border-radius: 10px;
+    padding: 0.5rem 0.25rem;
+}
+
+.shortcut-item:active {
+    cursor: grabbing;
+}
+
+.shortcut-item.dragging {
+    opacity: 0.4;
+    transform: scale(0.95);
+}
+
+.shortcut-item.drag-over {
+    outline: 2px dashed rgba(255, 255, 255, 0.4);
+    outline-offset: 4px;
+    border-radius: 10px;
 }
 
 .shortcut-item:hover .shortcut-menu-btn {
-  opacity: 1;
+    opacity: 1;
 }
 
 .shortcut-icon-wrapper {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background-color: var(--overlay-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 0.5rem auto;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--overlay-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 0.5rem auto;
 }
 
 .shortcut-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  display: block;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    display: block;
 }
 
-
 .shortcut-label {
-  font-size: 0.85rem;
-  word-break: break-word;
-  color: rgba(255, 255, 255, 0.8);
-  text-decoration: none;
+    font-size: 0.85rem;
+    word-break: break-word;
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
 }
 
 .shortcut-item,
@@ -52,93 +64,99 @@
 .shortcut-item a:visited,
 .shortcut-item a:hover,
 .shortcut-item a:active {
-  text-decoration: none !important;
+    text-decoration: none !important;
 }
 
 .shortcut-menu-btn {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-size: 1.2rem;
-  background: transparent;
-  border: none;
-  color: white;
-  opacity: 0;
-  cursor: pointer;
-  padding: 0.25rem;
-  z-index: 1;
-  transition: opacity 0.2s ease;
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 1.2rem;
+    background: transparent;
+    border: none;
+    color: white;
+    opacity: 0;
+    cursor: pointer;
+    padding: 0.25rem;
+    z-index: 1;
+    transition: opacity 0.2s ease;
 }
 
 .shortcut-menu {
-  position: absolute;
-  top: 24px;
-  right: 0;
-  background: #1e293b;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
-  display: none;
-  flex-direction: column;
-  z-index: 2;
+    position: absolute;
+    top: 24px;
+    right: 0;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+    display: none;
+    flex-direction: column;
+    z-index: 2;
 }
 
 .shortcut-menu button {
-  background: none;
-  border: none;
-  color: white;
-  padding: 0.5rem 1rem;
-  text-align: left;
-  cursor: pointer;
-  font-size: 0.85rem;
-  width: 100%;
+    background: none;
+    border: none;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-align: left;
+    cursor: pointer;
+    font-size: 0.85rem;
+    width: 100%;
 }
 
 .shortcut-menu button:hover {
-  background-color: #374151;
+    background-color: #374151;
 }
 
 .add-shortcut-btn {
-  color: var(--color-text);
-  font-size: 0.85rem;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  min-height: auto;
-  width: 100%;
-  box-shadow: none;
-  transition: background-color 0.2s ease;
-  text-decoration: none;
-  position: relative;
+    color: var(--color-text);
+    font-size: 0.85rem;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    min-height: auto;
+    width: 100%;
+    box-shadow: none;
+    transition: background-color 0.2s ease;
+    text-decoration: none;
+    position: relative;
+}
+
+.add-shortcut-btn.drag-over {
+    outline: 2px dashed rgba(255, 255, 255, 0.4);
+    outline-offset: 4px;
+    border-radius: 10px;
 }
 
 .add-shortcut-btn .add-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  margin: 0 auto 0.5rem auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--overlay-color);
-  font-size: 1.5rem;
-  color: var(--color-text);
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    margin: 0 auto 0.5rem auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--overlay-color);
+    font-size: 1.5rem;
+    color: var(--color-text);
 }
 
 .add-shortcut-btn .add-text {
-  font-size: 0.85rem;
-  word-break: break-word;
-  color: var(--color-text);
+    font-size: 0.85rem;
+    word-break: break-word;
+    color: var(--color-text);
 }
 
 @media (max-width: 768px) {
-  .shortcuts-wrapper {
-    min-width: 400px;
-  }
+    .shortcuts-wrapper {
+        min-width: 400px;
+    }
 }

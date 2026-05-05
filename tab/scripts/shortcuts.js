@@ -42,6 +42,7 @@ async function renderShortcuts() {
   for (const [index, shortcut] of shortcuts.entries()) {
     const div = document.createElement("div");
     div.className = "shortcut-item";
+    div.draggable = true;
 
     const link = document.createElement("a");
     link.href = shortcut.url;
@@ -52,7 +53,7 @@ async function renderShortcuts() {
         <img src="${favicon}" class="shortcut-icon" alt="" />
       </div>
       <div class="shortcut-label">${shortcut.name}</div>
-    `;  
+    `;
 
     const menuBtn = document.createElement("button");
     menuBtn.className = "shortcut-menu-btn";
@@ -87,6 +88,49 @@ async function renderShortcuts() {
       renderShortcuts();
     };
 
+    div.addEventListener("dragstart", (e) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", index);
+      div.classList.add("dragging");
+    });
+
+    div.addEventListener("dragend", () => {
+      div.classList.remove("dragging");
+      document.querySelectorAll(".shortcut-item").forEach(item => {
+        item.classList.remove("drag-over");
+      });
+    });
+
+    div.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    });
+
+    div.addEventListener("dragenter", (e) => {
+      e.preventDefault();
+      if (!div.classList.contains("add-shortcut-btn")) {
+        div.classList.add("drag-over");
+      }
+    });
+
+    div.addEventListener("dragleave", () => {
+      div.classList.remove("drag-over");
+    });
+
+    div.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      div.classList.remove("drag-over");
+      const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
+      if (isNaN(fromIndex) || fromIndex === index) return;
+
+      const allShortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+      const [moved] = allShortcuts.splice(fromIndex, 1);
+      allShortcuts.splice(index, 0, moved);
+      localStorage.setItem("shortcuts", JSON.stringify(allShortcuts));
+      renderShortcuts();
+    });
+
     div.appendChild(link);
     div.appendChild(menuBtn);
     div.appendChild(menu);
@@ -110,6 +154,32 @@ function addAddShortcutButton() {
 
   addShortcutButton.appendChild(iconDiv);
   addShortcutButton.appendChild(textDiv);
+
+  addShortcutButton.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    addShortcutButton.classList.add("drag-over");
+  });
+
+  addShortcutButton.addEventListener("dragleave", () => {
+    addShortcutButton.classList.remove("drag-over");
+  });
+
+  addShortcutButton.addEventListener("drop", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addShortcutButton.classList.remove("drag-over");
+    const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
+    if (isNaN(fromIndex)) return;
+
+    const allShortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+    if (fromIndex >= 0 && fromIndex < allShortcuts.length) {
+      const [moved] = allShortcuts.splice(fromIndex, 1);
+      allShortcuts.push(moved);
+      localStorage.setItem("shortcuts", JSON.stringify(allShortcuts));
+      renderShortcuts();
+    }
+  });
 
   addShortcutButton.addEventListener("click", () => {
     editingShortcut = null;

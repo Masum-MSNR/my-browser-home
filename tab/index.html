@@ -12,7 +12,6 @@
     <link rel="stylesheet" href="styles/clock.css" />
     <link rel="stylesheet" href="styles/search.css" />
     <link rel="stylesheet" href="styles/layout.css" />
-    <link rel="stylesheet" href="styles/todo.css" />
     <link rel="stylesheet" href="styles/mail.css" />
     <link rel="stylesheet" href="styles/shortcuts.css" />
     <link rel="stylesheet" href="styles/modal.css" />
@@ -21,8 +20,21 @@
 
 <body>
     <div class="container">
-        <!-- Theme Button -->
-        <button id="open-theme-panel" class="theme-toggle-icon" title="Change Theme">
+        <!-- Mail button + dropdown (top right) -->
+        <div id="mail-corner" class="mail-corner">
+            <button id="mail-dropdown-btn" class="corner-btn" title="Mail">
+                <i class="fas fa-envelope"></i>
+            </button>
+            <div id="mail-dropdown" class="mail-dropdown">
+                <div class="mail-dropdown-header">
+                    <h4>Google Accounts</h4>
+                </div>
+                <ul id="mail-dropdown-list"></ul>
+            </div>
+        </div>
+
+        <!-- Theme button (bottom right) -->
+        <button id="open-theme-panel" class="corner-btn corner-btn-theme" title="Change Theme">
             <i class="fas fa-palette"></i>
         </button>
 
@@ -52,44 +64,11 @@
             </div>
         </div>
 
-        <!-- Layout -->
-        <div class="block-layout">
-            <div class="block block-left">
-                <div class="todo-wrapper">
-                    <ul id="todo-list"></ul>
-                    <div id="todo-scroll-indicator">
-                        <div class="todo-arrow"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="block block-middle">
-                <div class="shortcuts-wrapper">
-                    <div id="shortcut-grid" class="shortcut-grid"></div>
-                </div>
-            </div>
-
-            <div class="block block-right">
-                <div class="mail-wrapper">
-                    <ul id="mail-list"></ul>
-                    <div id="mail-scroll-indicator">
-                        <i class="mail-arrow"></i>
-                    </div>
-                </div>
-            </div>
+        <!-- Shortcuts -->
+        <div class="shortcuts-wrapper">
+            <div id="shortcut-grid" class="shortcut-grid"></div>
         </div>
-    </div>
 
-    <!-- Todo Modal -->
-    <div id="todo-dialog" class="modal">
-        <div class="modal-content">
-            <button class="modal-close" id="close-todo-dialog">&times;</button>
-            <h4>Add New Task</h4>
-            <form id="todo-form" class="my-form">
-                <input type="text" id="todo-input" placeholder="Enter your task..." />
-                <button type="submit">Add</button>
-            </form>
-        </div>
     </div>
 
     <!-- Shortcut Modal -->
@@ -108,26 +87,12 @@
         </div>
     </div>
 
-    <!-- Mail Modal (legacy/manual add) -->
-    <div id="mail-dialog" class="modal">
-        <div class="modal-content">
-            <button class="modal-close" id="close-mail-dialog">&times;</button>
-            <h4>Add Mail Shortcut</h4>
-            <form id="mail-form" class="my-form">
-                <input type="text" id="mail-id" placeholder="Enter ID..." autocomplete="off" />
-                <input type="email" id="mail-email" placeholder="Enter Gmail..." />
-                <button type="submit">Add</button>
-            </form>
-        </div>
-    </div>
-
     <!-- Scripts -->
     <script src="scripts/clock.js"></script>
     <script src="scripts/search.js"></script>
-    <script src="scripts/todo.js"></script>
     <script src="scripts/mail.js"></script>
-    <script src="scripts/shortcuts.js" type="module"></script>
     <script src="./utils.js"></script>
+    <script src="scripts/shortcuts.js"></script>
     <script src="scripts/theme.js"></script>
 </body>
 

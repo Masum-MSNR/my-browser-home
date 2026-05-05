@@ -20,11 +20,10 @@ A minimal and productive new tab experience for Chrome users. This extension pro
 
 - **Live Digital Clock** - Real-time clock with automatic date updates
 - **Google Search Integration** - Search directly from the new tab page
-- **Daily Task Management** - Add, complete, and manage tasks that reset daily
-- **Gmail & Drive Shortcuts** - Quick access to multiple accounts
+- **Google Account Quick Links** - Dropdown showing all signed-in Google accounts with one-click access to Gmail, Drive, Meet, Docs, and Sheets
 - **Custom Website Shortcuts** - Add personalized tiles with favicon support
+- **Customizable Themes** - Choose from 20 background images with automatic light/dark text adaptation
 - **Responsive Design** - Optimized for desktop and mobile devices
-- **Dark Theme Interface** - Modern, clean aesthetic
 
 ## Installation
 
@@ -45,63 +44,49 @@ git clone https://github.com/your-username/custom-chrome-tab.git
 
 Follow steps 3-6 from Option 1 above.
 
-## Using Mail Shortcuts
+## Using Mail Dropdown
 
-You can quickly access Gmail and Google Drive accounts using the mail shortcut section.
+Click the envelope icon in the top-right corner to open a dropdown showing all Google accounts signed into your browser. Each account shows quick links to:
 
-### What is the "ID"?
+- **Gmail** - Opens inbox for that account
+- **Drive** - Opens Google Drive
+- **Meet** - Opens Google Meet
+- **Docs** - Opens Google Docs
+- **Sheets** - Opens Google Sheets
 
-The ID refers to the account number used in Gmail URLs:
-
-- https://mail.google.com/mail/u/0/#inbox → ID = 0 (first account)
-- https://mail.google.com/mail/u/1/#inbox → ID = 1 (second account)
-
-This number tells the shortcut which Google account to open.
-
-### Steps to Add a Mail Shortcut
-
-1. Click the "+ Add Mail" button
-2. Enter:
-   - ID: a number like 0, 1, 2 (based on your Google accounts)
-   - Email: the Gmail address (just for display)
-3. Click "Add"
-
-Once added, the shortcut will show two links:
-- Gmail → opens inbox for that ID
-- Drive → opens Drive for that ID
-
-Note: You must be logged in to that Google account in your browser for it to open correctly.
+Click "+ Add Gmail" at the bottom of the dropdown to sign in to an additional Google account.
 
 ## Development
 
 ### Project Structure
 
 ```
-project-root/
+my_chrome_home/
 ├── background/
 │   └── background.js
 ├── fonts/
 ├── icons/
-├── scripts/
-│   ├── clock.js
-│   ├── mail.js
-│   ├── search.js
-│   ├── shortcuts.js
-│   ├── theme.js
-│   └── todo.js
-├── styles/
-│   ├── base.css
-│   ├── clock.css
-│   ├── layout.css
-│   ├── mail.css
-│   ├── modal.css
-│   ├── search.css
-│   ├── shortcuts.css
-│   ├── theme.css
-│   └── todo.css
-├── index.html
-├── utils.js
-└── manifest.json
+├── screenshots/
+├── tab/
+│   ├── index.html
+│   ├── utils.js
+│   ├── scripts/
+│   │   ├── clock.js
+│   │   ├── mail.js
+│   │   ├── search.js
+│   │   ├── shortcuts.js
+│   │   └── theme.js
+│   └── styles/
+│       ├── base.css
+│       ├── clock.css
+│       ├── layout.css
+│       ├── mail.css
+│       ├── modal.css
+│       ├── search.css
+│       ├── shortcuts.css
+│       └── theme.css
+├── manifest.json
+└── readme.md
 ```
 
 ### Technology Stack
@@ -117,7 +102,6 @@ We welcome contributions to improve the extension. Consider these enhancement ar
 
 - AI-powered shortcut suggestions
 - Weather widget integration
-- Productivity analytics
 - Cloud synchronization options
 - Categorized shortcut organization
 
