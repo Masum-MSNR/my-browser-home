@@ -28,7 +28,7 @@ async function applyTheme(url) {
   document.body.style.backgroundAttachment = 'fixed';
   document.body.style.backgroundSize = 'cover';
 
-  await saveTheme(url);
+  await syncSet({ customBg: url });
 
   analyzeImageBrightness(url, (brightness) => {
     if (brightness < 128) {
@@ -86,7 +86,7 @@ function renderThemeOptions() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const saved = await loadTheme();
+  const saved = await syncGet("customBg");
   if (saved) {
     applyTheme(saved);
   } else {

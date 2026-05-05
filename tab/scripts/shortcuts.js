@@ -32,9 +32,17 @@ async function getFaviconUrl(link) {
   });
 }
 
+async function getShortcuts() {
+  return await syncGet("shortcuts") || [];
+}
+
+async function setShortcuts(val) {
+  await syncSet({ shortcuts: val });
+}
+
 async function renderShortcuts() {
   shortcutList.innerHTML = "";
-  const shortcuts = await loadShortcuts();
+  const shortcuts = await getShortcuts();
 
   for (const [index, shortcut] of shortcuts.entries()) {
     const div = document.createElement("div");
@@ -80,9 +88,9 @@ async function renderShortcuts() {
     };
 
     menu.querySelector(".delete-btn").onclick = async () => {
-      const all = await loadShortcuts();
+      const all = await getShortcuts();
       all.splice(index, 1);
-      await saveShortcuts(all);
+      await setShortcuts(all);
       renderShortcuts();
     };
 
@@ -122,10 +130,10 @@ async function renderShortcuts() {
       const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
       if (isNaN(fromIndex) || fromIndex === index) return;
 
-      const all = await loadShortcuts();
+      const all = await getShortcuts();
       const [moved] = all.splice(fromIndex, 1);
       all.splice(index, 0, moved);
-      await saveShortcuts(all);
+      await setShortcuts(all);
       renderShortcuts();
     });
 
@@ -170,11 +178,11 @@ function addAddShortcutButton() {
     const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
     if (isNaN(fromIndex)) return;
 
-    const all = await loadShortcuts();
+    const all = await getShortcuts();
     if (fromIndex >= 0 && fromIndex < all.length) {
       const [moved] = all.splice(fromIndex, 1);
       all.push(moved);
-      await saveShortcuts(all);
+      await setShortcuts(all);
       renderShortcuts();
     }
   });
@@ -203,7 +211,7 @@ shortcutForm.onsubmit = async (e) => {
   const url = shortcutUrlInput.value.trim();
   if (!name || !url) return;
 
-  const shortcuts = await loadShortcuts();
+  const shortcuts = await getShortcuts();
 
   if (editingShortcut !== null) {
     shortcuts[editingShortcut] = { name, url };
@@ -211,7 +219,7 @@ shortcutForm.onsubmit = async (e) => {
     shortcuts.push({ name, url });
   }
 
-  await saveShortcuts(shortcuts);
+  await setShortcuts(shortcuts);
   renderShortcuts();
   shortcutForm.reset();
   shortcutDialog.style.display = "none";

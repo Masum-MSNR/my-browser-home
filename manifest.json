@@ -15,9 +15,6 @@
   "host_permissions": [
     "<all_urls>"
   ],
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://accounts.google.com"
-  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

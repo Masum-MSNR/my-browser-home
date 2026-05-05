@@ -26,8 +26,16 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
+async function getMailShortcuts() {
+    return await syncGet("mailShortcuts") || [];
+}
+
+async function setMailShortcuts(val) {
+    await syncSet({ mailShortcuts: val });
+}
+
 async function renderMailList() {
-    const mails = await loadMailShortcuts();
+    const mails = await getMailShortcuts();
     mailDropdownList.innerHTML = "";
     mails.forEach(addMailItem);
 }
@@ -124,7 +132,7 @@ async function scanAccountChooserPageAndSave() {
         }).filter(Boolean);
 
         if (result.length > 0) {
-            await saveMailShortcuts(result);
+            await setMailShortcuts(result);
             await renderMailList();
         } else {
             console.log("No Gmail accounts found.");
