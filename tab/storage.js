@@ -16,6 +16,24 @@ function syncSet(obj) {
     const btn = document.getElementById("sync-btn");
     if (!btn) return;
 
+    let infoBubble = document.getElementById("sync-info-bubble");
+    if (!infoBubble) {
+        infoBubble = document.createElement("div");
+        infoBubble.id = "sync-info-bubble";
+        infoBubble.className = "sync-info-bubble";
+        document.body.appendChild(infoBubble);
+    }
+
+    function showInfo(text, status) {
+        infoBubble.textContent = text;
+        infoBubble.className = "sync-info-bubble " + status;
+        infoBubble.style.display = "block";
+        clearTimeout(infoBubble._timer);
+        infoBubble._timer = setTimeout(() => {
+            infoBubble.style.display = "none";
+        }, 3000);
+    }
+
     chrome.storage.sync.getBytesInUse(null, (bytes) => {
         if (!chrome.runtime.lastError && bytes > 0) {
             btn.classList.add("synced");
@@ -33,7 +51,16 @@ function syncSet(obj) {
 
             await syncSet({ shortcuts, mailShortcuts, customBg });
             btn.classList.add("synced");
+
+            chrome.identity.getProfileUserInfo({}, (user) => {
+                if (user.email) {
+                    showInfo(user.email, "synced");
+                } else {
+                    showInfo("Synced (no account signed in)", "synced");
+                }
+            });
         } catch (err) {
+            showInfo("Sync failed", "error");
             console.warn("Sync failed:", err.message);
         }
 

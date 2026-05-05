@@ -94,6 +94,37 @@ body.light-text {
     to { transform: rotate(360deg); }
 }
 
+.sync-info-bubble {
+    display: none;
+    position: fixed;
+    top: 4rem;
+    right: 1.25rem;
+    background: #1e293b;
+    color: white;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    z-index: 200;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    animation: bubbleIn 0.2s ease-out;
+}
+
+.sync-info-bubble.synced {
+    border-color: rgba(74, 222, 128, 0.4);
+}
+
+.sync-info-bubble.error {
+    border-color: rgba(248, 113, 113, 0.4);
+    color: #f87171;
+}
+
+@keyframes bubbleIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .theme-panel {
     position: fixed;
     top: 0;
