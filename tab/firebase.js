@@ -1,9 +1,9 @@
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    appId: "YOUR_APP_ID"
+    apiKey: "AIzaSyDmSkO5QLovaA54Oa24tSUVxJ9fUy-QJTw",
+    authDomain: "cipher-vault-app.firebaseapp.com",
+    projectId: "cipher-vault-app",
+    storageBucket: "cipher-vault-app.firebasestorage.app",
+    appId: "1:84808619865:web:a01d710fd2398119451e48"
 };
 
 firebase.initializeApp(firebaseConfig);
