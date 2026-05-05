@@ -115,6 +115,29 @@ body.light-text {
     border-color: rgba(74, 222, 128, 0.4);
 }
 
+.sync-info-bubble small {
+    display: block;
+    margin-top: 0.3rem;
+    opacity: 0.7;
+    font-weight: 400;
+    font-size: 0.72rem;
+}
+
+.sync-copy-btn {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0 0.2rem;
+    font-size: 0.85rem;
+    vertical-align: middle;
+    opacity: 0.8;
+}
+
+.sync-copy-btn:hover {
+    opacity: 1;
+}
+
 .sync-info-bubble.error {
     border-color: rgba(248, 113, 113, 0.4);
     color: #f87171;

@@ -1,7 +1,7 @@
 function syncGet(key) {
     return new Promise((resolve) => {
         chrome.storage.sync.get(key, (result) => {
-            resolve(result[key]);
+            resolve(result[key] || localStorage.getItem(key));
         });
     });
 }
@@ -25,45 +25,46 @@ function syncSet(obj) {
     }
 
     function showInfo(text, status) {
-        infoBubble.textContent = text;
+        infoBubble.innerHTML = text;
         infoBubble.className = "sync-info-bubble " + status;
         infoBubble.style.display = "block";
         clearTimeout(infoBubble._timer);
-        infoBubble._timer = setTimeout(() => {
-            infoBubble.style.display = "none";
-        }, 3000);
     }
 
-    chrome.storage.sync.getBytesInUse(null, (bytes) => {
-        if (!chrome.runtime.lastError && bytes > 0) {
-            btn.classList.add("synced");
-        }
-    });
+    function hideInfo() {
+        infoBubble._timer = setTimeout(() => {
+            infoBubble.style.display = "none";
+        }, 5000);
+    }
 
     btn.addEventListener("click", async () => {
         btn.classList.add("syncing");
         btn.classList.remove("synced");
 
         try {
-            const shortcuts = await syncGet("shortcuts") || JSON.parse(localStorage.getItem("shortcuts") || "[]");
-            const mailShortcuts = await syncGet("mailShortcuts") || JSON.parse(localStorage.getItem("mailShortcuts") || "[]");
-            const customBg = await syncGet("customBg") || localStorage.getItem("customBg");
-
-            await syncSet({ shortcuts, mailShortcuts, customBg });
+            await fbSaveAll();
             btn.classList.add("synced");
-
-            chrome.identity.getProfileUserInfo({}, (user) => {
-                if (user.email) {
-                    showInfo(user.email, "synced");
-                } else {
-                    showInfo("Synced (no account signed in)", "synced");
-                }
-            });
+            showInfo(
+                `Synced to Firebase &#10003;<br><small>ID: ${fbSyncId.slice(0,8)}&hellip; <button class="sync-copy-btn" onclick="navigator.clipboard.writeText('${fbSyncId}')" title="Copy full ID">&#128203;</button><br>Use same ID on other devices to link</small>`,
+                "synced"
+            );
+            hideInfo();
         } catch (err) {
-            showInfo("Sync failed", "error");
-            console.warn("Sync failed:", err.message);
+            btn.classList.remove("synced");
+            showInfo("Sync failed: " + err.message, "error");
+            hideInfo();
         }
 
         btn.classList.remove("syncing");
+    });
+
+    btn.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const newId = prompt("Enter sync ID from another device:", fbSyncId);
+        if (newId && newId.length >= 8) {
+            localStorage.setItem("syncId", newId.trim());
+            showInfo("Sync ID set. Click sync to pull data.", "synced");
+            hideInfo();
+        }
     });
 })();
