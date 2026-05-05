@@ -170,9 +170,8 @@ async function fbSaveAll() {
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
     var shortcuts = (await syncGet("shortcuts")) || [];
-    var mailShortcuts = (await syncGet("mailShortcuts")) || [];
     var customBg = (await syncGet("customBg")) || null;
-    await fbSet(docPath, { shortcuts: shortcuts, mailShortcuts: mailShortcuts, customBg: customBg });
+    await fbSet(docPath, { shortcuts: shortcuts, customBg: customBg });
 }
 
 async function fbLoadAll() {
@@ -182,7 +181,6 @@ async function fbLoadAll() {
     var d = await fbGet(docPath);
     if (d) {
         if (d.shortcuts) await syncSet({ shortcuts: d.shortcuts });
-        if (d.mailShortcuts) await syncSet({ mailShortcuts: d.mailShortcuts });
         if (d.customBg) await syncSet({ customBg: d.customBg });
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
     }
