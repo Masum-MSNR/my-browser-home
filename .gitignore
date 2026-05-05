@@ -14,3 +14,4 @@ Build artifacts
 node_modules/
 dist/
 *.zip
+.firebase/

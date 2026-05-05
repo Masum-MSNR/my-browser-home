@@ -102,3 +102,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("theme-panel").classList.remove("open");
   });
 });
+
+window.addEventListener("syncdataloaded", async () => {
+  const saved = await syncGet("customBg");
+  if (saved) applyTheme(saved);
+});

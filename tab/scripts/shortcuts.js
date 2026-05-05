@@ -265,3 +265,4 @@ document.addEventListener("click", () => {
 });
 
 renderShortcuts();
+window.addEventListener("syncdataloaded", renderShortcuts);
