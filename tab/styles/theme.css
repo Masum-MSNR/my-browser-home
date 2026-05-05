@@ -75,36 +75,38 @@ body.light-text {
 }
 
 .theme-panel {
-    position: fixed;
-    top: 0;
-    left: -320px;
-    width: 320px;
+    width: 0;
     height: 100vh;
     background: #1e293b;
     color: white;
     z-index: 1000;
-    padding: 0 1rem 1rem 1rem;
-    border-radius: 0 12px 12px 0;
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
-    transition: left 0.3s ease-in-out;
-    overflow-y: auto;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: width 0.3s ease-in-out;
 }
 
-.theme-panel::-webkit-scrollbar {
+.theme-panel.open {
+    width: 320px;
+}
+
+.theme-panel-inner {
+    width: 320px;
+    height: 100%;
+    overflow-y: auto;
+    padding: 0 1rem 1rem 1rem;
+}
+
+.theme-panel-inner::-webkit-scrollbar {
     width: 6px;
 }
 
-.theme-panel::-webkit-scrollbar-thumb {
+.theme-panel-inner::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.25);
     border-radius: 4px;
 }
 
-.theme-panel::-webkit-scrollbar-track {
+.theme-panel-inner::-webkit-scrollbar-track {
     background: transparent;
-}
-
-.theme-panel.open {
-    left: 0;
 }
 
 .theme-panel-header {
