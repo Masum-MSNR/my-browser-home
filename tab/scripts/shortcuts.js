@@ -10,23 +10,20 @@ const syncNameBtn = document.getElementById("sync-name-btn");
 let editingShortcut = null;
 
 async function getFaviconUrl(link) {
-  return new Promise(async (resolve) => {
+  return new Promise((resolve) => {
     try {
       const urlObj = new URL(link);
       const rootDomain = getFullDomain(urlObj.href);
-      console.log("Root Domain:", rootDomain);
 
       if (!rootDomain) {
-        const fallback = `https://www.google.com/s2/favicons?sz=64&domain=${urlObj.hostname}`;
-        return resolve(fallback);
+        return resolve(`https://www.google.com/s2/favicons?sz=64&domain=${urlObj.hostname}`);
       }
 
       chrome.storage.local.get(rootDomain, (result) => {
         if (result && result[rootDomain] && result[rootDomain].favicon) {
           resolve(result[rootDomain].favicon);
         } else {
-          const fallback = `https://www.google.com/s2/favicons?sz=64&domain=${rootDomain}`;
-          resolve(fallback);
+          resolve(`https://www.google.com/s2/favicons?sz=64&domain=${rootDomain}`);
         }
       });
     } catch {
@@ -37,7 +34,7 @@ async function getFaviconUrl(link) {
 
 async function renderShortcuts() {
   shortcutList.innerHTML = "";
-  const shortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+  const shortcuts = await loadShortcuts();
 
   for (const [index, shortcut] of shortcuts.entries()) {
     const div = document.createElement("div");
@@ -82,9 +79,10 @@ async function renderShortcuts() {
       syncNameBtn.style.display = "inline";
     };
 
-    menu.querySelector(".delete-btn").onclick = () => {
-      shortcuts.splice(index, 1);
-      localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+    menu.querySelector(".delete-btn").onclick = async () => {
+      const all = await loadShortcuts();
+      all.splice(index, 1);
+      await saveShortcuts(all);
       renderShortcuts();
     };
 
@@ -117,17 +115,17 @@ async function renderShortcuts() {
       div.classList.remove("drag-over");
     });
 
-    div.addEventListener("drop", (e) => {
+    div.addEventListener("drop", async (e) => {
       e.preventDefault();
       e.stopPropagation();
       div.classList.remove("drag-over");
       const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
       if (isNaN(fromIndex) || fromIndex === index) return;
 
-      const allShortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
-      const [moved] = allShortcuts.splice(fromIndex, 1);
-      allShortcuts.splice(index, 0, moved);
-      localStorage.setItem("shortcuts", JSON.stringify(allShortcuts));
+      const all = await loadShortcuts();
+      const [moved] = all.splice(fromIndex, 1);
+      all.splice(index, 0, moved);
+      await saveShortcuts(all);
       renderShortcuts();
     });
 
@@ -135,7 +133,7 @@ async function renderShortcuts() {
     div.appendChild(menuBtn);
     div.appendChild(menu);
     shortcutList.appendChild(div);
-  };
+  }
 
   addAddShortcutButton();
 }
@@ -165,18 +163,18 @@ function addAddShortcutButton() {
     addShortcutButton.classList.remove("drag-over");
   });
 
-  addShortcutButton.addEventListener("drop", (e) => {
+  addShortcutButton.addEventListener("drop", async (e) => {
     e.preventDefault();
     e.stopPropagation();
     addShortcutButton.classList.remove("drag-over");
     const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
     if (isNaN(fromIndex)) return;
 
-    const allShortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
-    if (fromIndex >= 0 && fromIndex < allShortcuts.length) {
-      const [moved] = allShortcuts.splice(fromIndex, 1);
-      allShortcuts.push(moved);
-      localStorage.setItem("shortcuts", JSON.stringify(allShortcuts));
+    const all = await loadShortcuts();
+    if (fromIndex >= 0 && fromIndex < all.length) {
+      const [moved] = all.splice(fromIndex, 1);
+      all.push(moved);
+      await saveShortcuts(all);
       renderShortcuts();
     }
   });
@@ -199,13 +197,13 @@ function closeAllMenus() {
   });
 }
 
-shortcutForm.onsubmit = (e) => {
+shortcutForm.onsubmit = async (e) => {
   e.preventDefault();
   const name = shortcutNameInput.value.trim();
   const url = shortcutUrlInput.value.trim();
   if (!name || !url) return;
 
-  const shortcuts = JSON.parse(localStorage.getItem("shortcuts")) || [];
+  const shortcuts = await loadShortcuts();
 
   if (editingShortcut !== null) {
     shortcuts[editingShortcut] = { name, url };
@@ -213,7 +211,7 @@ shortcutForm.onsubmit = (e) => {
     shortcuts.push({ name, url });
   }
 
-  localStorage.setItem("shortcuts", JSON.stringify(shortcuts));
+  await saveShortcuts(shortcuts);
   renderShortcuts();
   shortcutForm.reset();
   shortcutDialog.style.display = "none";

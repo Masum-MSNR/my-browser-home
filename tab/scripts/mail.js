@@ -26,12 +26,8 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-function saveMailShortcuts(data) {
-    localStorage.setItem("mailShortcuts", JSON.stringify(data));
-}
-
-function loadMailShortcuts() {
-    const mails = JSON.parse(localStorage.getItem("mailShortcuts")) || [];
+async function renderMailList() {
+    const mails = await loadMailShortcuts();
     mailDropdownList.innerHTML = "";
     mails.forEach(addMailItem);
 }
@@ -128,8 +124,8 @@ async function scanAccountChooserPageAndSave() {
         }).filter(Boolean);
 
         if (result.length > 0) {
-            saveMailShortcuts(result);
-            loadMailShortcuts();
+            await saveMailShortcuts(result);
+            await renderMailList();
         } else {
             console.log("No Gmail accounts found.");
         }
@@ -151,5 +147,5 @@ if (mailDropdownHeader) {
     mailDropdownHeader.appendChild(addBtn);
 }
 
-loadMailShortcuts();
+renderMailList();
 scanAccountChooserPageAndSave();
