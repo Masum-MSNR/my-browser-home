@@ -1,14 +1,26 @@
 function syncGet(key) {
     return new Promise(function (resolve) {
         chrome.storage.sync.get(key, function (result) {
-            resolve(result[key] || localStorage.getItem(key));
+            if (result[key] !== undefined) {
+                resolve(result[key]);
+            } else {
+                var raw = localStorage.getItem(key);
+                try { resolve(raw ? JSON.parse(raw) : raw); } catch (e) { resolve(raw); }
+            }
         });
     });
 }
 
 function syncSet(obj) {
     return new Promise(function (resolve) {
-        chrome.storage.sync.set(obj, resolve);
+        chrome.storage.sync.set(obj, function () {
+            for (var k in obj) {
+                if (obj.hasOwnProperty(k)) {
+                    localStorage.setItem(k, JSON.stringify(obj[k]));
+                }
+            }
+            resolve();
+        });
     });
 }
 

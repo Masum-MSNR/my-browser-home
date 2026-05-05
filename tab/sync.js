@@ -169,9 +169,9 @@ async function fbSaveAll() {
     if (!getSyncId()) throw new Error("Sign in first");
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
-    var shortcuts = JSON.parse(localStorage.getItem("shortcuts") || "[]");
-    var mailShortcuts = JSON.parse(localStorage.getItem("mailShortcuts") || "[]");
-    var customBg = localStorage.getItem("customBg") || null;
+    var shortcuts = (await syncGet("shortcuts")) || [];
+    var mailShortcuts = (await syncGet("mailShortcuts")) || [];
+    var customBg = (await syncGet("customBg")) || null;
     await fbSet(docPath, { shortcuts: shortcuts, mailShortcuts: mailShortcuts, customBg: customBg });
 }
 
@@ -181,9 +181,9 @@ async function fbLoadAll() {
     docPath = "users/" + syncId + "/data/main";
     var d = await fbGet(docPath);
     if (d) {
-        if (d.shortcuts) localStorage.setItem("shortcuts", JSON.stringify(d.shortcuts));
-        if (d.mailShortcuts) localStorage.setItem("mailShortcuts", JSON.stringify(d.mailShortcuts));
-        if (d.customBg) localStorage.setItem("customBg", d.customBg);
+        if (d.shortcuts) await syncSet({ shortcuts: d.shortcuts });
+        if (d.mailShortcuts) await syncSet({ mailShortcuts: d.mailShortcuts });
+        if (d.customBg) await syncSet({ customBg: d.customBg });
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
     }
 }
