@@ -74,29 +74,15 @@ body.light-text {
     z-index: 100;
 }
 
-.corner-btn-sync {
+.sync-corner {
     position: fixed;
     top: 1.25rem;
     right: 4.6rem;
     z-index: 100;
 }
 
-.sync-user-badge {
-    display: none;
-    position: fixed;
-    top: 1.6rem;
-    right: 7.2rem;
-    z-index: 100;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.7);
-    padding: 0.3rem 0.6rem;
-    border-radius: 12px;
-    font-size: 0.72rem;
-    max-width: 140px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    pointer-events: none;
+.corner-btn-sync {
+    position: relative;
 }
 
 .corner-btn-sync.syncing i {
@@ -164,6 +150,123 @@ body.light-text {
 @keyframes bubbleIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+.sync-dropdown {
+    position: absolute;
+    top: calc(100% + 0.75rem);
+    right: 0;
+    width: 300px;
+    background: #1e293b;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    z-index: 1001;
+    display: none;
+    overflow: hidden;
+    animation: mailFadeIn 0.2s ease-out;
+}
+
+.sync-dropdown.open {
+    display: block;
+}
+
+.sync-dropdown-inner {
+    padding: 1rem;
+}
+
+.sync-dropdown-user {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sync-dropdown-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.sync-dropdown-email {
+    font-size: 0.85rem;
+    color: white;
+    font-weight: 500;
+    word-break: break-all;
+}
+
+.sync-dropdown-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.sync-dropdown-btn {
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: 500;
+    text-align: center;
+    transition: background 0.15s, transform 0.15s;
+}
+
+.sync-dropdown-btn.primary {
+    background: #2563eb;
+    color: white;
+}
+
+.sync-dropdown-btn.primary:hover {
+    background: #1d4ed8;
+}
+
+.sync-dropdown-btn.ghost {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.sync-dropdown-btn.ghost:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+}
+
+.sync-dropdown-btn.danger {
+    background: rgba(248, 113, 113, 0.1);
+    color: #f87171;
+}
+
+.sync-dropdown-btn.danger:hover {
+    background: rgba(248, 113, 113, 0.2);
+}
+
+.sync-dropdown-btn.signin {
+    background: #2563eb;
+    color: white;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.sync-dropdown-btn.signin:hover {
+    background: #1d4ed8;
+}
+
+.sync-dropdown-info {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    margin-bottom: 0.75rem;
+    line-height: 1.4;
 }
 
 .theme-panel {

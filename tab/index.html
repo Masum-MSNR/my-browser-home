@@ -21,10 +21,14 @@
 <body>
     <div class="container">
         <!-- Sync + Mail buttons (top right) -->
-        <button id="sync-btn" class="corner-btn corner-btn-sync" title="Sign in to sync">
-            <i class="fas fa-cloud"></i>
-        </button>
-        <span id="sync-user" class="sync-user-badge"></span>
+        <div id="sync-corner" class="sync-corner">
+            <button id="sync-btn" class="corner-btn corner-btn-sync" title="Sync">
+                <i class="fas fa-cloud"></i>
+            </button>
+            <div id="sync-dropdown" class="sync-dropdown">
+                <div id="sync-dropdown-content"></div>
+            </div>
+        </div>
         <div id="mail-corner" class="mail-corner">
             <button id="mail-dropdown-btn" class="corner-btn" title="Mail">
                 <i class="fas fa-envelope"></i>
