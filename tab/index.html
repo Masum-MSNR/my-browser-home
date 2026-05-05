@@ -19,62 +19,56 @@
 </head>
 
 <body>
-    <div class="app-shell">
-        <!-- Theme Panel (pushes content) -->
+    <div class="container">
+        <!-- Mail button + dropdown (top right) -->
+        <div id="mail-corner" class="mail-corner">
+            <button id="mail-dropdown-btn" class="corner-btn" title="Mail">
+                <i class="fas fa-envelope"></i>
+            </button>
+            <div id="mail-dropdown" class="mail-dropdown">
+                <div class="mail-dropdown-header">
+                    <h4>Google Accounts</h4>
+                </div>
+                <ul id="mail-dropdown-list"></ul>
+            </div>
+        </div>
+
+        <!-- Theme button (bottom right) -->
+        <button id="open-theme-panel" class="corner-btn corner-btn-theme" title="Change Theme">
+            <i class="fas fa-palette"></i>
+        </button>
+
+        <!-- Theme Panel -->
         <div id="theme-panel" class="theme-panel">
-            <div class="theme-panel-inner">
-                <div class="theme-panel-header">
-                    <h3>Select a Theme</h3>
-                    <button class="close-theme-panel" title="Close Panel">&times;</button>
-                </div>
-                <div class="theme-options" id="theme-options"></div>
+            <div class="theme-panel-header">
+                <h3>Select a Theme</h3>
+                <button class="close-theme-panel" title="Close Panel">&times;</button>
+            </div>
+            <div class="theme-options" id="theme-options"></div>
+        </div>
+
+        <!-- Clock -->
+        <div class="time-container">
+            <div class="digital-display">
+                <div class="time" id="time">12<span class="colon">:</span>48 PM</div>
+                <div class="date" id="date">THU • AUG 07 • 2025</div>
             </div>
         </div>
 
-        <!-- Main content area -->
-        <div class="main-content">
-            <div class="container">
-                <!-- Mail button + dropdown (top right) -->
-                <div id="mail-corner" class="mail-corner">
-                    <button id="mail-dropdown-btn" class="corner-btn" title="Mail">
-                        <i class="fas fa-envelope"></i>
-                    </button>
-                    <div id="mail-dropdown" class="mail-dropdown">
-                        <div class="mail-dropdown-header">
-                            <h4>Google Accounts</h4>
-                        </div>
-                        <ul id="mail-dropdown-list"></ul>
-                    </div>
-                </div>
-
-                <!-- Theme button (bottom right) -->
-                <button id="open-theme-panel" class="corner-btn corner-btn-theme" title="Change Theme">
-                    <i class="fas fa-palette"></i>
-                </button>
-
-                <!-- Clock -->
-                <div class="time-container">
-                    <div class="digital-display">
-                        <div class="time" id="time">12<span class="colon">:</span>48 PM</div>
-                        <div class="date" id="date">THU • AUG 07 • 2025</div>
-                    </div>
-                </div>
-
-                <!-- Search -->
-                <div class="search-container">
-                    <div class="search-wrapper">
-                        <input type="text" class="search-box" placeholder="Search Google..." id="searchInput"
-                            autocomplete="off">
-                        <button class="search-btn" onclick="performSearch()">⌕</button>
-                    </div>
-                </div>
-
-                <!-- Shortcuts -->
-                <div class="shortcuts-wrapper">
-                    <div id="shortcut-grid" class="shortcut-grid"></div>
-                </div>
+        <!-- Search -->
+        <div class="search-container">
+            <div class="search-wrapper">
+                <input type="text" class="search-box" placeholder="Search Google..." id="searchInput"
+                    autocomplete="off">
+                <button class="search-btn" onclick="performSearch()">⌕</button>
             </div>
         </div>
+
+        <!-- Shortcuts -->
+        <div class="shortcuts-wrapper">
+            <div id="shortcut-grid" class="shortcut-grid"></div>
+        </div>
+
     </div>
 
     <!-- Shortcut Modal -->
