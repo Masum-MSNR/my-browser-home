@@ -46,14 +46,8 @@ function createServiceLink(href, title, iconUrl) {
     const img = document.createElement("img");
     img.src = iconUrl;
     img.alt = title;
-    img.width = 20;
-    img.height = 20;
-
-    const label = document.createElement("span");
-    label.textContent = title;
 
     link.appendChild(img);
-    link.appendChild(label);
     return link;
 }
 
@@ -97,19 +91,15 @@ function addMailItem({ email, name, image }) {
     const cloudIcon = document.createElement("i");
     cloudIcon.className = "fas fa-cloud";
 
-    const cloudLabel = document.createElement("span");
-    cloudLabel.textContent = "Cloud";
-
     cloudLink.appendChild(cloudIcon);
-    cloudLink.appendChild(cloudLabel);
     services.appendChild(cloudLink);
 
     info.appendChild(nameEl);
     info.appendChild(emailEl);
-    info.appendChild(services);
 
     li.appendChild(avatar);
     li.appendChild(info);
+    li.appendChild(services);
     mailDropdownList.appendChild(li);
 }
 
