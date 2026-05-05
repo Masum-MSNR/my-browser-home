@@ -24,36 +24,45 @@ function syncSet(obj) {
         document.body.appendChild(bubble);
     }
 
-    function showInfo(text, status) {
+    function show(text, cls) {
         bubble.innerHTML = text;
-        bubble.className = "sync-info-bubble " + status;
+        bubble.className = "sync-info-bubble " + cls;
         bubble.style.display = "block";
         clearTimeout(bubble._timer);
         bubble._timer = setTimeout(() => { bubble.style.display = "none"; }, 4000);
     }
 
-    btn.addEventListener("click", async () => {
-        if (!auth.currentUser) {
-            showInfo("Signing in with Google...", "");
-            await signIn();
-            return;
-        }
+    async function updateStatus() {
+        chrome.identity.getProfileUserInfo({}, async (user) => {
+            const badge = document.getElementById("sync-user");
+            if (user.email) {
+                if (badge) { badge.textContent = user.email; badge.style.display = "inline"; }
+                btn.classList.add("synced");
+                await initSync();
+            } else {
+                if (badge) badge.style.display = "none";
+                await initSync();
+            }
+        });
+    }
 
+    btn.addEventListener("click", async () => {
         btn.classList.add("syncing");
+        btn.classList.remove("synced");
 
         try {
-            const shortcuts = JSON.parse(localStorage.getItem("shortcuts") || "[]");
-            const mailShortcuts = JSON.parse(localStorage.getItem("mailShortcuts") || "[]");
-            const customBg = localStorage.getItem("customBg");
-
-            await saveUserData({ shortcuts, mailShortcuts, customBg });
-            await syncSet({ shortcuts, mailShortcuts, customBg });
+            await fbSaveAll();
             btn.classList.add("synced");
-            showInfo("Synced &#10003;", "synced");
+            chrome.identity.getProfileUserInfo({}, (u) => {
+                if (u.email) show(`Synced as ${u.email} &#10003;`, "synced");
+                else show(`Synced &#10003;<br><small>ID: ${syncId?.slice(0,8)}&hellip; (use on other devices)</small>`, "synced");
+            });
         } catch (err) {
-            showInfo(err.message, "error");
+            show(err.message, "error");
         }
 
         btn.classList.remove("syncing");
     });
+
+    updateStatus();
 })();
