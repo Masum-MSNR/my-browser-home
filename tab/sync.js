@@ -126,6 +126,63 @@ function um(v) { return v.stringValue != null ? v.stringValue : v.doubleValue !=
 var syncId = null;
 var docPath = null;
 
+function ensureShortcut(s, pos) {
+    if (!s || !s.url) return null;
+    if (!s.id) s.id = crypto.randomUUID();
+    if (!s.updatedAt) s.updatedAt = Date.now();
+    if (pos !== undefined) s.position = pos;
+    if (s.position === undefined) s.position = 0;
+    return s;
+}
+
+function mergeShortcuts(local, remote) {
+    var byId = {};
+    var tombstones = {};
+    try { tombstones = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+
+    // Index local by id
+    for (var i = 0; i < local.length; i++) {
+        var s = ensureShortcut(local[i], i);
+        if (!s) continue;
+        byId[s.id] = s;
+    }
+
+    // Merge remote: keep latest by updatedAt
+    for (var i = 0; i < remote.length; i++) {
+        var s = ensureShortcut(remote[i]);
+        if (!s) continue;
+
+        // Check tombstone: local deletion newer than remote update
+        var delTs = tombstones[s.id];
+        if (delTs && delTs > s.updatedAt) continue;
+
+        var existing = byId[s.id];
+        if (!existing || s.updatedAt > existing.updatedAt) {
+            byId[s.id] = s;
+        }
+    }
+
+    // Convert to array sorted by position
+    var result = [];
+    for (var id in byId) {
+        if (byId.hasOwnProperty(id)) result.push(byId[id]);
+    }
+    result.sort(function (a, b) { return a.position - b.position; });
+
+    // Normalize positions and filter nulls
+    var clean = [];
+    for (var i = 0; i < result.length; i++) {
+        if (result[i] && result[i].url) {
+            result[i].position = i;
+            clean.push(result[i]);
+        }
+    }
+    return clean;
+}
+
+var syncId = null;
+var docPath = null;
+
 async function fbGet(path, retry) {
     if (retry === undefined) retry = true;
     var r = await fetch(FB_BASE + "/" + path, {
@@ -169,9 +226,19 @@ async function fbSaveAll() {
     if (!getSyncId()) throw new Error("Sign in first");
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
-    var shortcuts = (await syncGet("shortcuts")) || [];
+    var local = (await syncGet("shortcuts")) || [];
     var customBg = (await syncGet("customBg")) || null;
-    await fbSet(docPath, { shortcuts: shortcuts, customBg: customBg });
+
+    var remote = [];
+    try {
+        var doc = await fbGet(docPath);
+        if (doc && doc.shortcuts) remote = doc.shortcuts;
+    } catch (e) {}
+
+    var merged = mergeShortcuts(local, remote);
+    await syncSet({ shortcuts: merged });
+    await fbSet(docPath, { shortcuts: merged, customBg: customBg });
+    window.dispatchEvent(new CustomEvent("syncdataloaded"));
 }
 
 async function fbLoadAll() {
@@ -179,11 +246,15 @@ async function fbLoadAll() {
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
     var d = await fbGet(docPath);
-    if (d) {
-        if (d.shortcuts) await syncSet({ shortcuts: d.shortcuts });
-        if (d.customBg) await syncSet({ customBg: d.customBg });
-        window.dispatchEvent(new CustomEvent("syncdataloaded"));
-    }
+    if (!d) return;
+
+    var local = (await syncGet("shortcuts")) || [];
+    var remote = d.shortcuts || [];
+    var merged = mergeShortcuts(local, remote);
+
+    await syncSet({ shortcuts: merged });
+    if (d.customBg) await syncSet({ customBg: d.customBg });
+    window.dispatchEvent(new CustomEvent("syncdataloaded"));
 }
 
 function getCurrentUser() {

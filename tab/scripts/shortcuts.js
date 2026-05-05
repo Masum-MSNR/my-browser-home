@@ -90,8 +90,18 @@ async function renderShortcuts() {
     };
 
     menu.querySelector(".delete-btn").onclick = async () => {
-      const all = await getShortcuts();
-      all.splice(index, 1);
+      var all = await getShortcuts();
+      if (!Array.isArray(all)) all = [];
+      var deleted = all.splice(index, 1)[0];
+      // Track tombstone for sync conflict resolution
+      if (deleted && deleted.id) {
+        var tombstones = {};
+        try { tombstones = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+        tombstones[deleted.id] = Date.now();
+        localStorage.setItem("_deleted", JSON.stringify(tombstones));
+      }
+      // Update positions
+      for (var i = 0; i < all.length; i++) { all[i].position = i; }
       await setShortcuts(all);
       renderShortcuts();
     };
@@ -132,9 +142,15 @@ async function renderShortcuts() {
       const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
       if (isNaN(fromIndex) || fromIndex === index) return;
 
-      const all = await getShortcuts();
-      const [moved] = all.splice(fromIndex, 1);
+      var all = await getShortcuts();
+      if (!Array.isArray(all)) all = [];
+      var moved = all.splice(fromIndex, 1)[0];
       all.splice(index, 0, moved);
+      // Update positions and timestamp for moved item
+      for (var i = 0; i < all.length; i++) {
+        all[i].position = i;
+      }
+      if (moved) moved.updatedAt = Date.now();
       await setShortcuts(all);
       renderShortcuts();
     });
@@ -180,10 +196,13 @@ function addAddShortcutButton() {
     const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
     if (isNaN(fromIndex)) return;
 
-    const all = await getShortcuts();
+    var all = await getShortcuts();
+    if (!Array.isArray(all)) all = [];
     if (fromIndex >= 0 && fromIndex < all.length) {
-      const [moved] = all.splice(fromIndex, 1);
+      var moved = all.splice(fromIndex, 1)[0];
       all.push(moved);
+      for (var i = 0; i < all.length; i++) { all[i].position = i; }
+      if (moved) moved.updatedAt = Date.now();
       await setShortcuts(all);
       renderShortcuts();
     }
@@ -213,12 +232,27 @@ shortcutForm.onsubmit = async (e) => {
   const url = shortcutUrlInput.value.trim();
   if (!name || !url) return;
 
-  const shortcuts = await getShortcuts();
+  var shortcuts = await getShortcuts();
+  if (!Array.isArray(shortcuts)) shortcuts = [];
+  shortcuts = shortcuts.filter(function (s) { return s && s.url; });
 
   if (editingShortcut !== null) {
-    shortcuts[editingShortcut] = { name, url };
+    shortcuts[editingShortcut].name = name;
+    shortcuts[editingShortcut].url = url;
+    shortcuts[editingShortcut].updatedAt = Date.now();
   } else {
-    shortcuts.push({ name, url });
+    shortcuts.push({
+      id: crypto.randomUUID(),
+      name: name,
+      url: url,
+      position: shortcuts.length,
+      updatedAt: Date.now()
+    });
+  }
+
+  // Update positions
+  for (var i = 0; i < shortcuts.length; i++) {
+    shortcuts[i].position = i;
   }
 
   await setShortcuts(shortcuts);
