@@ -22,7 +22,12 @@ async function fbAuth() {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: '{"returnSecureToken":true}' }
     );
     const data = await resp.json();
-    if (!data.idToken) throw new Error(data.error?.message || "Auth failed");
+    if (!data.idToken) {
+        if (data.error?.message === "ADMIN_ONLY_OPERATION") {
+            throw new Error("Anonymous auth not enabled. Go to Firebase Console → Authentication → Sign-in method → Anonymous → Enable");
+        }
+        throw new Error(data.error?.message || "Auth failed");
+    }
 
     localStorage.setItem("fbToken", JSON.stringify({
         idToken: data.idToken,
