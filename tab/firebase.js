@@ -16,27 +16,22 @@ function initFirebase() {
     if (readyPromise) return readyPromise;
 
     readyPromise = new Promise((resolve) => {
-        chrome.identity.getAuthToken({ interactive: false }, async (token) => {
-            if (chrome.runtime.lastError || !token) {
-                console.warn("Auth token unavailable:", chrome.runtime.lastError?.message);
-                resolve();
-                return;
-            }
-
-            try {
-                const credential = firebase.auth.GoogleAuthProvider.credential(null, token);
-                const result = await firebase.auth().signInWithCredential(credential);
-                const uid = result.user.uid;
-                userDoc = db.collection("users").doc(uid).collection("data").doc("main");
-
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (user) {
+                userDoc = db.collection("users").doc(user.uid).collection("data").doc("main");
                 const snap = await userDoc.get();
                 if (!snap.exists || (snap.data().shortcuts || []).length === 0) {
                     await migrateFromLocalStorage();
                 }
                 resolve();
-            } catch (err) {
-                console.warn("Firebase init failed:", err.message);
-                resolve();
+            } else {
+                try {
+                    const provider = new firebase.auth.GoogleAuthProvider();
+                    await firebase.auth().signInWithPopup(provider);
+                } catch (err) {
+                    console.warn("Firebase sign-in skipped:", err.message);
+                    resolve();
+                }
             }
         });
     });
