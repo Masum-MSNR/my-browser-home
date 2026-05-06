@@ -39,7 +39,8 @@ function getFullDomain(url) {
 
 function getFaviconUrl(url) {
   try {
-    return "chrome://favicon2/?size=32&pageUrl=" + encodeURIComponent(url);
+    var domain = new URL(url).hostname;
+    return "https://www.google.com/s2/favicons?sz=32&domain=" + domain;
   } catch (e) {
     return "";
   }

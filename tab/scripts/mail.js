@@ -167,3 +167,9 @@ if (mailDropdownHeader) {
 }
 
 renderMailList();
+
+// Auto-scan once per browser session (sessionStorage resets on browser close)
+if (!sessionStorage.getItem("_mail_scanned")) {
+    sessionStorage.setItem("_mail_scanned", "1");
+    scanAccountChooserPageAndSave();
+}
