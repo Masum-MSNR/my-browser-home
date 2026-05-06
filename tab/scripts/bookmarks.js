@@ -141,13 +141,15 @@ function createBarBookmarkItem(bm, idx) {
     item.className = "bookmark-bar-item bm-bar-bookmark";
     item.draggable = true;
     item.dataset.bmIdx = idx;
+    item.dataset.bmUrl = bm.url;
     item.title = bm.name;
 
     var favicon = document.createElement("img");
     favicon.className = "bm-favicon";
     favicon.draggable = false;
     favicon.alt = "";
-    favicon.src = getFaviconUrl(bm.url);
+    favicon.src = getFaviconUrlSync(bm.url);
+getFaviconUrl(bm.url).then(function (u) { favicon.src = u; });
 
     var name = document.createElement("span");
     name.className = "bm-title";
@@ -280,7 +282,8 @@ function createSubmenuBookmarkItem(bm) {
     favicon.alt = "";
     favicon.style.width = "14px";
     favicon.style.height = "14px";
-    favicon.src = getFaviconUrl(bm.url);
+    favicon.src = getFaviconUrlSync(bm.url);
+getFaviconUrl(bm.url).then(function (u) { favicon.src = u; });
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
     return item;
@@ -924,7 +927,8 @@ function createBookmarkItem(bm, idx) {
     var favicon = document.createElement("img");
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
-    favicon.src = getFaviconUrl(bm.url);
+    favicon.src = getFaviconUrlSync(bm.url);
+getFaviconUrl(bm.url).then(function (u) { favicon.src = u; });
 
     var name = document.createElement("span");
     name.className = "bm-dl-name";
@@ -1087,6 +1091,29 @@ bookmarkBarItems.addEventListener("wheel", function (e) {
         bookmarkBarItems.scrollLeft += e.deltaY;
     }
 }, { passive: false });
+
+// === Live favicon update: when a site is visited, refresh its icon ===
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+    if (areaName !== "local") return;
+    var updatedDomain = null;
+    for (var key in changes) {
+        if (changes[key].newValue && changes[key].newValue.favicon) {
+            updatedDomain = key;
+            break;
+        }
+    }
+    if (!updatedDomain) return;
+    var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+    for (var i = 0; i < items.length; i++) {
+        var url = items[i].dataset.bmUrl;
+        if (url && url.indexOf(updatedDomain) !== -1) {
+            var img = items[i].querySelector(".bm-favicon");
+            if (img) {
+                getFaviconUrl(url).then(function (u) { img.src = u; });
+            }
+        }
+    }
+});
 
 // === Init ===
 document.body.classList.add("bookmark-bar-visible");

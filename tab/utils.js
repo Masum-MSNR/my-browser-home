@@ -38,6 +38,29 @@ function getFullDomain(url) {
 }
 
 function getFaviconUrl(url) {
+  return new Promise(function (resolve) {
+    try {
+      var urlObj = new URL(url);
+      var domain = getFullDomain ? getFullDomain(urlObj.href) : urlObj.hostname;
+      if (!domain) {
+        resolve("https://www.google.com/s2/favicons?sz=32&domain=" + urlObj.hostname);
+        return;
+      }
+      chrome.storage.local.get(domain, function (result) {
+        if (result && result[domain] && result[domain].favicon) {
+          resolve(result[domain].favicon);
+        } else {
+          resolve("https://www.google.com/s2/favicons?sz=32&domain=" + domain);
+        }
+      });
+    } catch (e) {
+      resolve("https://www.google.com/s2/favicons?sz=32&domain=" + url);
+    }
+  });
+}
+
+// Quick sync fallback — used when we just need something on screen fast
+function getFaviconUrlSync(url) {
   try {
     var domain = new URL(url).hostname;
     return "https://www.google.com/s2/favicons?sz=32&domain=" + domain;

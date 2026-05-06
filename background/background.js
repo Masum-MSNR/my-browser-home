@@ -1,3 +1,17 @@
+importScripts('../tab/utils.js');
+
+chrome.webNavigation.onCompleted.addListener(function (details) {
+    var tabId = details.tabId;
+    chrome.tabs.get(tabId, function (tab) {
+        if (!tab || !tab.url || !tab.favIconUrl) return;
+        var rootDomain = getFullDomain(tab.url);
+        if (!rootDomain) return;
+        chrome.storage.local.set({
+            [rootDomain]: { url: tab.url, favicon: tab.favIconUrl, title: tab.title || tab.url }
+        });
+    });
+});
+
 var CLIENT_ID = "692720523871-cd6v5ba5ancrjj92iljqhhcr7vrbl8sn.apps.googleusercontent.com";
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
@@ -33,7 +47,6 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
         });
         return true;
     }
-
     if (request.type === "CLEAR_AUTH_TOKEN") {
         sendResponse({ done: true });
         return true;
