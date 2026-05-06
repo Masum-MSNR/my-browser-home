@@ -259,6 +259,14 @@ async function renderBarSubmenu(folder, anchor) {
     }, 50);
 
     activeSubmenu = sub;
+    // Refresh submenu favicons from cache
+    setTimeout(function () {
+        var subImgs = sub.querySelectorAll(".bm-submenu-bookmark img");
+        for (var i = 0; i < subImgs.length; i++) {
+            var a = subImgs[i].parentNode;
+            if (a && a.href) refreshFaviconFromCache(subImgs[i], a.href);
+        }
+    }, 100);
 }
 
 function createSubmenuFolderItem(folder, allFolders, allBookmarks, parentId) {
@@ -343,6 +351,13 @@ async function renderNestedSubmenu(folder, anchor) {
         list.appendChild(createSubmenuBookmarkItem(childBookmarks[cb]));
     }
     sub.appendChild(list);
+    setTimeout(function () {
+        var subImgs = sub.querySelectorAll(".bm-submenu-bookmark img");
+        for (var i = 0; i < subImgs.length; i++) {
+            var a = subImgs[i].parentNode;
+            if (a && a.href) refreshFaviconFromCache(subImgs[i], a.href);
+        }
+    }, 100);
 }
 
 // === Context menus ===
@@ -734,6 +749,13 @@ async function renderBookmarkDropdown() {
 
     if (showAddForms) wireAddForms();
     renderBookmarkList();
+    // Refresh favicons from cache after dialog is fully rendered
+    setTimeout(function () {
+        var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
+        for (var i = 0; i < dlItems.length; i++) {
+            if (dlItems[i].dataset.bmUrl) refreshFaviconFromCache(dlItems[i], dlItems[i].dataset.bmUrl);
+        }
+    }, 100);
 }
 
 function wireAddForms() {
