@@ -95,6 +95,7 @@ async function signIn() {
     syncId = currentUser.uid;
     docPath = "users/" + syncId + "/data/main";
     try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
+    startPolling();
 
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
     return currentUser;
@@ -105,6 +106,7 @@ function signOut() {
     syncId = null;
     docPath = null;
     localStorage.removeItem("_fbu");
+    stopPolling();
     chrome.runtime.sendMessage({ type: "CLEAR_AUTH_TOKEN" }, function () {});
     if (typeof updateSyncUI === "function") updateSyncUI(null);
 }
@@ -135,15 +137,31 @@ function ensureShortcut(s, pos) {
     return s;
 }
 
-function mergeShortcuts(local, remote) {
+function mergeItems(local, remote, localDeleted, remoteDeleted) {
     var byId = {};
     var tombstones = {};
-    try { tombstones = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+    // Merge tombstones: remote deletions also count locally
+    if (localDeleted) {
+        for (var k in localDeleted) {
+            if (localDeleted.hasOwnProperty(k)) tombstones[k] = localDeleted[k];
+        }
+    }
+    if (remoteDeleted) {
+        for (var k in remoteDeleted) {
+            if (remoteDeleted.hasOwnProperty(k)) {
+                if (!tombstones[k] || remoteDeleted[k] > tombstones[k]) {
+                    tombstones[k] = remoteDeleted[k];
+                }
+            }
+        }
+    }
 
     // Index local by id
     for (var i = 0; i < local.length; i++) {
         var s = ensureShortcut(local[i], i);
         if (!s) continue;
+        var delTs = tombstones[s.id];
+        if (delTs && delTs >= (s.updatedAt || 0)) continue;
         byId[s.id] = s;
     }
 
@@ -151,13 +169,10 @@ function mergeShortcuts(local, remote) {
     for (var i = 0; i < remote.length; i++) {
         var s = ensureShortcut(remote[i]);
         if (!s) continue;
-
-        // Check tombstone: local deletion newer than remote update
         var delTs = tombstones[s.id];
-        if (delTs && delTs > s.updatedAt) continue;
-
+        if (delTs && delTs >= (s.updatedAt || 0)) continue;
         var existing = byId[s.id];
-        if (!existing || s.updatedAt > existing.updatedAt) {
+        if (!existing || (s.updatedAt || 0) > (existing.updatedAt || 0)) {
             byId[s.id] = s;
         }
     }
@@ -167,7 +182,7 @@ function mergeShortcuts(local, remote) {
     for (var id in byId) {
         if (byId.hasOwnProperty(id)) result.push(byId[id]);
     }
-    result.sort(function (a, b) { return a.position - b.position; });
+    result.sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
 
     // Normalize positions and filter nulls
     var clean = [];
@@ -178,6 +193,24 @@ function mergeShortcuts(local, remote) {
         }
     }
     return clean;
+}
+
+// Get merged tombstones (local + remote, keep latest)
+function getMergedTombstones(localDeleted, remoteDeleted) {
+    var merged = {};
+    if (localDeleted) {
+        for (var k in localDeleted) {
+            if (localDeleted.hasOwnProperty(k)) merged[k] = localDeleted[k];
+        }
+    }
+    if (remoteDeleted) {
+        for (var k in remoteDeleted) {
+            if (remoteDeleted.hasOwnProperty(k)) {
+                if (!merged[k] || remoteDeleted[k] > merged[k]) merged[k] = remoteDeleted[k];
+            }
+        }
+    }
+    return merged;
 }
 
 var syncId = null;
@@ -197,9 +230,7 @@ async function fbGet(path, retry) {
         var d = await r.json();
         return d.fields ? unmap(d) : null;
     } catch (e) {
-        if (retry) {
-            return fbGet(path, false);
-        }
+        if (retry) return fbGet(path, false);
         throw e;
     }
 }
@@ -218,9 +249,7 @@ async function fbSet(path, obj, retry) {
         }
         if (!r.ok) throw new Error(((await r.json()).error || {}).message || "Write failed");
     } catch (e) {
-        if (retry) {
-            return fbSet(path, obj, false);
-        }
+        if (retry) return fbSet(path, obj, false);
         throw e;
     }
 }
@@ -232,42 +261,55 @@ async function initSync() {
         syncId = currentUser.uid;
         docPath = "users/" + syncId + "/data/main";
         try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
+        startPolling();
     }
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
 }
 
 async function fbSaveAll() {
-    if (!getSyncId()) throw new Error("Sign in first");
+    if (!getSyncId()) return;
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
+
     var local = (await syncGet("shortcuts")) || [];
     var localBookmarks = (await syncGet("bookmarks")) || [];
     var localFolders = (await syncGet("bookmarkFolders")) || [];
     var customBg = (await syncGet("customBg")) || null;
+    var localDeleted = {};
+    try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
 
-    var remote = [];
-    var remoteBookmarks = [];
-    var remoteFolders = [];
-    try {
-        var doc = await fbGet(docPath);
-        if (doc && doc.shortcuts) remote = doc.shortcuts;
-        if (doc && doc.bookmarks) remoteBookmarks = doc.bookmarks;
-        if (doc && doc.bookmarkFolders) remoteFolders = doc.bookmarkFolders;
-    } catch (e) { setSyncIcon("error"); }
+    var doc = null;
+    var remoteDeleted = {};
+    try { doc = await fbGet(docPath); } catch (e) {}
+    if (doc && doc._deleted) remoteDeleted = doc._deleted;
+
+    var remote = doc && doc.shortcuts ? doc.shortcuts : [];
+    var remoteBookmarks = doc && doc.bookmarks ? doc.bookmarks : [];
+    var remoteFolders = doc && doc.bookmarkFolders ? doc.bookmarkFolders : [];
+
+    var merged = mergeItems(local, remote, localDeleted, remoteDeleted);
+    var mergedBookmarks = mergeItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted);
+    var mergedFolders = mergeItems(localFolders, remoteFolders, localDeleted, remoteDeleted);
+    var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
+
+    await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
+    localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
 
     try {
-        var merged = mergeShortcuts(local, remote);
-        var mergedBookmarks = mergeShortcuts(localBookmarks, remoteBookmarks);
-        var mergedFolders = mergeShortcuts(localFolders, remoteFolders);
-        await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
-        await fbSet(docPath, { shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders, customBg: customBg });
+        await fbSet(docPath, {
+            shortcuts: merged,
+            bookmarks: mergedBookmarks,
+            bookmarkFolders: mergedFolders,
+            customBg: customBg,
+            _deleted: mergedDeleted
+        });
         setSyncIcon("synced");
-        window.dispatchEvent(new CustomEvent("syncdataloaded"));
     } catch (e) {
         setSyncIcon("error");
-        throw e;
+        return;
     }
 
+    window.dispatchEvent(new CustomEvent("syncdataloaded"));
 }
 
 async function fbLoadAll() {
@@ -281,23 +323,61 @@ async function fbLoadAll() {
         var local = (await syncGet("shortcuts")) || [];
         var localBookmarks = (await syncGet("bookmarks")) || [];
         var localFolders = (await syncGet("bookmarkFolders")) || [];
-        var remote = d.shortcuts || [];
-        var remoteBookmarks = d.bookmarks || [];
-        var remoteFolders = d.bookmarkFolders || [];
-        var merged = mergeShortcuts(local, remote);
-        var mergedBookmarks = mergeShortcuts(localBookmarks, remoteBookmarks);
-        var mergedFolders = mergeShortcuts(localFolders, remoteFolders);
+        var localDeleted = {};
+        try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+        var remoteDeleted = d._deleted || {};
+
+        var merged = mergeItems(local, d.shortcuts || [], localDeleted, remoteDeleted);
+        var mergedBookmarks = mergeItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted);
+        var mergedFolders = mergeItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted);
+        var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
 
         await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
+        localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
         if (d.customBg) await syncSet({ customBg: d.customBg });
         setSyncIcon("synced");
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
     } catch (e) {
         setSyncIcon("error");
-        throw e;
     }
 }
 
+// === Auto sync ===
+var autoSyncTimer = null;
+function autoSync() {
+    if (!getSyncId()) return;
+    clearTimeout(autoSyncTimer);
+    autoSyncTimer = setTimeout(function () {
+        fbSaveAll().catch(function () {});
+    }, 800);
+}
+
+// === Polling for remote changes ===
+var pollInterval = null;
+function startPolling() {
+    if (pollInterval) return;
+    pollInterval = setInterval(function () {
+        if (getSyncId()) {
+            fbLoadAll().catch(function () {});
+        }
+    }, 10000);
+}
+
+function stopPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+}
+
+// Sync when tab becomes visible
+document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && getSyncId()) {
+        fbLoadAll().catch(function () {});
+    }
+});
+
+// === Icon & user ===
 function setSyncIcon(state) {
     var btn = document.getElementById("sync-btn");
     if (!btn) return;

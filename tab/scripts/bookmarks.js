@@ -16,12 +16,14 @@ async function getBookmarks() {
 }
 async function setBookmarks(val) {
     await syncSet({ bookmarks: val });
+    if (typeof autoSync === "function") autoSync();
 }
 async function getFolders() {
     return (await syncGet("bookmarkFolders")) || [];
 }
 async function setFolders(val) {
     await syncSet({ bookmarkFolders: val });
+    if (typeof autoSync === "function") autoSync();
 }
 
 // === Favicon ===
