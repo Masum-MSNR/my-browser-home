@@ -160,8 +160,7 @@ function mergeItems(local, remote, localDeleted, remoteDeleted) {
     for (var i = 0; i < local.length; i++) {
         var s = ensureShortcut(local[i], i);
         if (!s) continue;
-        var delTs = tombstones[s.id];
-        if (delTs && delTs >= (s.updatedAt || 0)) continue;
+        if (tombstones[s.id] !== undefined) continue; // Deleted — always skip
         byId[s.id] = s;
     }
 
@@ -169,8 +168,7 @@ function mergeItems(local, remote, localDeleted, remoteDeleted) {
     for (var i = 0; i < remote.length; i++) {
         var s = ensureShortcut(remote[i]);
         if (!s) continue;
-        var delTs = tombstones[s.id];
-        if (delTs && delTs >= (s.updatedAt || 0)) continue;
+        if (tombstones[s.id] !== undefined) continue; // Deleted — always skip
         var existing = byId[s.id];
         if (!existing || (s.updatedAt || 0) > (existing.updatedAt || 0)) {
             byId[s.id] = s;
