@@ -5,7 +5,7 @@
 }
 
 .digital-display {
-  padding: 20px 40px 10px 40px;
+  padding: 25px 40px;
   position: relative;
   display: inline-block;
 }
@@ -20,14 +20,14 @@
 
 .time {
   font-family: 'Digital7', monospace;
-  font-size: clamp(2.5rem, 6vw, 4.5rem);
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
   font-weight: bold;
   color: #00ff66;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   display: block;
   text-align: center;
-  line-height: 1.1;
-  margin-bottom: 4px;
+  line-height: 1;
+  margin-bottom: 10px;
   position: relative;
   z-index: 1;
 }
@@ -44,14 +44,14 @@
 
 .date {
   font-family: 'Courier New', 'Lucida Console', monospace;
-  font-size: clamp(0.8rem, 1.8vw, 1.1rem);
+  font-size: clamp(0.9rem, 2vw, 1.3rem);
   font-weight: normal;
   color: #00cc55;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-align: center;
   opacity: 0.9;
   text-transform: uppercase;
   position: relative;
   z-index: 1;
-  padding-top: 2px;
+  margin-top: 0;
 }
