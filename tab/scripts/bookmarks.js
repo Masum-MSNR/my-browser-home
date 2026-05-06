@@ -1103,7 +1103,39 @@ bookmarkBarItems.addEventListener("wheel", function (e) {
     }
 }, { passive: false });
 
+// === Live favicon refresh: try to upgrade icons from cached real favicons ===
+function refreshAllFaviconsFromCache() {
+    var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+    for (var i = 0; i < items.length; i++) {
+        var url = items[i].dataset.bmUrl;
+        var img = items[i].querySelector(".bm-favicon");
+        if (url && img) refreshFaviconFromCache(img, url);
+    }
+}
+
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+    if (areaName !== "local") return;
+    var updatedDomain = null;
+    for (var key in changes) {
+        if (changes[key].newValue && changes[key].newValue.favicon) {
+            updatedDomain = key; break;
+        }
+    }
+    if (!updatedDomain) return;
+    var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+    for (var i = 0; i < items.length; i++) {
+        var url = items[i].dataset.bmUrl;
+        if (url && url.indexOf(updatedDomain) !== -1) {
+            var img = items[i].querySelector(".bm-favicon");
+            if (img) refreshFaviconFromCache(img, url);
+        }
+    }
+});
+
 // === Init ===
 document.body.classList.add("bookmark-bar-visible");
-window.addEventListener("syncdataloaded", renderBookmarkBar);
-renderBookmarkBar();
+window.addEventListener("syncdataloaded", async function () {
+    await renderBookmarkBar();
+    refreshAllFaviconsFromCache();
+});
+renderBookmarkBar().then(refreshAllFaviconsFromCache);

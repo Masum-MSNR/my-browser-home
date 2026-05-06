@@ -59,13 +59,34 @@ var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
   '<path d="M2 12h20"/><path d="M12 2v20"/></svg>'
 );
 
-// Set favicon with fallback: S2 → built-in globe (always succeeds)
+// Set favicon: S2 first, then try to upgrade to real favicon from cache
 function setFaviconWithFallback(img, url) {
-  var currentSrc = img.src;
-  if (currentSrc && !currentSrc.startsWith("data:") && img.naturalWidth > 0) return;
   img.src = getFaviconUrlSync(url);
   img.onerror = function () {
     img.src = DEFAULT_FAVICON;
     img.onerror = null;
   };
+}
+
+// Try to upgrade favicon from cached real URL (background worker). Test-load
+// off-screen first — only apply if the real URL actually loads successfully.
+// CORP-blocked URLs silently fail the test and keep S2.
+function refreshFaviconFromCache(img, url) {
+  try {
+    var domain = new URL(url).hostname.replace(/^www\./, '');
+    chrome.storage.local.get(domain, function (result) {
+      if (!result || !result[domain] || !result[domain].favicon) return;
+      var realUrl = result[domain].favicon;
+      // Test-load off-screen before applying
+      var test = new Image();
+      test.onload = function () {
+        img.src = realUrl;
+        img.onerror = null; // real URL works, clear fallback
+      };
+      test.onerror = function () {
+        // CORP or network error — keep S2, do nothing
+      };
+      test.src = realUrl;
+    });
+  } catch (e) {}
 }

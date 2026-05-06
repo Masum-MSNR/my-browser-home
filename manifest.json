@@ -10,6 +10,7 @@
   "permissions": [
     "storage",
     "favicon",
+    "webNavigation",
     "identity"
   ],
   "host_permissions": [
