@@ -11,7 +11,7 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
-body.bookmark-bar-visible { padding-top: 42px; }
+body.bookmark-bar-visible { padding-top: calc(42px + 12vh); }
 
 .bookmark-bar-items {
     display: flex; align-items: center; gap: 2px;
