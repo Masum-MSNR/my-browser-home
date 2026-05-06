@@ -297,6 +297,13 @@ async function fbSaveAll() {
     var mergedFolders = mergeItems(localFolders, remoteFolders, localDeleted, remoteDeleted);
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
 
+    // Only dispatch UI refresh if data actually changed
+    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, d: localDeleted });
+    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, d: mergedDeleted });
+    var changed = localBefore !== mergedAfter ||
+        JSON.stringify({ s: remote, b: remoteBookmarks, f: remoteFolders }) !==
+        JSON.stringify({ s: local, b: localBookmarks, f: localFolders });
+
     await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
     localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
 
@@ -314,7 +321,9 @@ async function fbSaveAll() {
         return;
     }
 
-    window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    if (changed) {
+        window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    }
 }
 
 async function fbLoadAll() {
@@ -336,6 +345,11 @@ async function fbLoadAll() {
         var mergedBookmarks = mergeItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted);
         var mergedFolders = mergeItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted);
         var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
+
+        // Only update UI if data actually changed
+        var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, d: localDeleted });
+        var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, d: mergedDeleted });
+        if (localBefore === mergedAfter) return;
 
         await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
         localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
@@ -393,7 +407,7 @@ function startPolling() {
         if (getSyncId() && !syncBusy) {
             pollFromRemote();
         }
-    }, 10000);
+    }, 30000);
 }
 
 function stopPolling() {
