@@ -38,26 +38,7 @@ function getFullDomain(url) {
 }
 
 function getFaviconUrl(url) {
-  return new Promise(function (resolve) {
-    try {
-      var urlObj = new URL(url);
-      var domain = getFullDomain ? getFullDomain(urlObj.href) : urlObj.hostname;
-      if (!domain) {
-        resolve("https://www.google.com/s2/favicons?sz=32&domain=" + urlObj.hostname);
-        return;
-      }
-      // Check local favicon cache (mirrored from chrome.storage.local by onChanged)
-      var cache = {};
-      try { cache = JSON.parse(localStorage.getItem("_favicons") || "{}"); } catch (e) {}
-      if (cache[domain]) {
-        resolve(cache[domain]);
-      } else {
-        resolve("https://www.google.com/s2/favicons?sz=32&domain=" + domain);
-      }
-    } catch (e) {
-      resolve("https://www.google.com/s2/favicons?sz=32&domain=" + url);
-    }
-  });
+  return Promise.resolve(getFaviconUrlSync(url));
 }
 
 // Quick sync fallback
@@ -78,25 +59,13 @@ var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
   '<path d="M2 12h20"/><path d="M12 2v20"/></svg>'
 );
 
-// Set favicon with fallback: S2 → built-in globe (always succeeds, no CORP errors)
-function setFaviconWithFallback(img, url, cachedUrl) {
+// Set favicon with fallback: S2 → built-in globe (always succeeds)
+function setFaviconWithFallback(img, url) {
   var currentSrc = img.src;
   if (currentSrc && !currentSrc.startsWith("data:") && img.naturalWidth > 0) return;
-  if (cachedUrl) { img.src = cachedUrl; return; }
-
   img.src = getFaviconUrlSync(url);
   img.onerror = function () {
     img.src = DEFAULT_FAVICON;
     img.onerror = null;
   };
-}
-
-// Update favicon only if we have a better (real) one
-function upgradeFavicon(img, url) {
-  getFaviconUrl(url).then(function (u) {
-    if (u && u.indexOf("google.com/s2") === -1) {
-      img.src = u;
-      img.onerror = null;
-    }
-  });
 }

@@ -149,7 +149,6 @@ function createBarBookmarkItem(bm, idx) {
     favicon.draggable = false;
     favicon.alt = "";
     setFaviconWithFallback(favicon, bm.url);
-upgradeFavicon(favicon, bm.url);
 
     var name = document.createElement("span");
     name.className = "bm-title";
@@ -283,7 +282,6 @@ function createSubmenuBookmarkItem(bm) {
     favicon.style.width = "14px";
     favicon.style.height = "14px";
     setFaviconWithFallback(favicon, bm.url);
-upgradeFavicon(favicon, bm.url);
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
     return item;
@@ -935,7 +933,6 @@ function createBookmarkItem(bm, idx) {
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
     setFaviconWithFallback(favicon, bm.url);
-upgradeFavicon(favicon, bm.url);
 
     var name = document.createElement("span");
     name.className = "bm-dl-name";
@@ -1105,45 +1102,6 @@ bookmarkBarItems.addEventListener("wheel", function (e) {
         bookmarkBarItems.scrollLeft += e.deltaY;
     }
 }, { passive: false });
-
-// === Live favicon update ===
-// Mirror chrome.storage.local favicons → localStorage so getFaviconUrl has no chrome dependency
-(function initFaviconMirror() {
-    chrome.storage.local.get(null, function (items) {
-        var cache = {};
-        for (var key in items) {
-            if (items.hasOwnProperty(key) && items[key] && items[key].favicon) {
-                cache[key] = items[key].favicon;
-            }
-        }
-        localStorage.setItem("_favicons", JSON.stringify(cache));
-    });
-
-    chrome.storage.onChanged.addListener(function (changes, areaName) {
-        if (areaName !== "local") return;
-        var updatedDomain = null;
-        var cache = {};
-        try { cache = JSON.parse(localStorage.getItem("_favicons") || "{}"); } catch (e) {}
-        for (var key in changes) {
-            if (changes[key].newValue && changes[key].newValue.favicon) {
-                cache[key] = changes[key].newValue.favicon;
-                updatedDomain = key;
-            }
-        }
-        if (updatedDomain) {
-            localStorage.setItem("_favicons", JSON.stringify(cache));
-            // Refresh matching icons on the bar
-            var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
-            for (var i = 0; i < items.length; i++) {
-                var url = items[i].dataset.bmUrl;
-                if (url && url.indexOf(updatedDomain) !== -1) {
-                    var img = items[i].querySelector(".bm-favicon");
-                    if (img) upgradeFavicon(img, url);
-                }
-            }
-        }
-    });
-})();
 
 // === Init ===
 document.body.classList.add("bookmark-bar-visible");
