@@ -305,5 +305,38 @@ document.addEventListener("click", () => {
   closeAllMenus();
 });
 
-renderShortcuts();
-window.addEventListener("syncdataloaded", renderShortcuts);
+renderShortcuts().then(refreshShortcutFavicons);
+
+window.addEventListener("syncdataloaded", async function () {
+    await renderShortcuts();
+    refreshShortcutFavicons();
+});
+
+// === Live favicon refresh for shortcuts ===
+function refreshShortcutFavicons() {
+    var items = shortcutList.querySelectorAll(".shortcut-item a");
+    for (var i = 0; i < items.length; i++) {
+        var img = items[i].querySelector(".shortcut-icon");
+        var href = items[i].getAttribute("href");
+        if (img && href) refreshFaviconFromCache(img, href);
+    }
+}
+
+chrome.storage.onChanged.addListener(function (changes, areaName) {
+    if (areaName !== "local") return;
+    var updatedDomain = null;
+    for (var key in changes) {
+        if (changes[key].newValue && changes[key].newValue.favicon) {
+            updatedDomain = key; break;
+        }
+    }
+    if (!updatedDomain) return;
+    var items = shortcutList.querySelectorAll(".shortcut-item a");
+    for (var i = 0; i < items.length; i++) {
+        var href = items[i].getAttribute("href");
+        if (href && href.indexOf(updatedDomain) !== -1) {
+            var img = items[i].querySelector(".shortcut-icon");
+            if (img) refreshFaviconFromCache(img, href);
+        }
+    }
+});
