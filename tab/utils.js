@@ -46,13 +46,14 @@ function getFaviconUrl(url) {
         resolve("https://www.google.com/s2/favicons?sz=32&domain=" + urlObj.hostname);
         return;
       }
-      chrome.storage.local.get(domain, function (result) {
-        if (result && result[domain] && result[domain].favicon) {
-          resolve(result[domain].favicon);
-        } else {
-          resolve("https://www.google.com/s2/favicons?sz=32&domain=" + domain);
-        }
-      });
+      // Check local favicon cache (mirrored from chrome.storage.local by onChanged)
+      var cache = {};
+      try { cache = JSON.parse(localStorage.getItem("_favicons") || "{}"); } catch (e) {}
+      if (cache[domain]) {
+        resolve(cache[domain]);
+      } else {
+        resolve("https://www.google.com/s2/favicons?sz=32&domain=" + domain);
+      }
     } catch (e) {
       resolve("https://www.google.com/s2/favicons?sz=32&domain=" + url);
     }

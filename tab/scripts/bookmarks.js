@@ -401,8 +401,15 @@ function showBookmarkContextMenu(e, bm) {
 
     menu.querySelector('[data-action="delete"]').onclick = async function () {
         var all = await getBookmarks();
+        var deleted = null;
         for (var a = 0; a < all.length; a++) {
-            if (all[a].id === bm.id) { all.splice(a, 1); break; }
+            if (all[a].id === bm.id) { deleted = all.splice(a, 1)[0]; break; }
+        }
+        if (deleted && deleted.id) {
+            var d = {};
+            try { d = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+            d[deleted.id] = Date.now();
+            localStorage.setItem("_deleted", JSON.stringify(d));
         }
         for (var j = 0; j < all.length; j++) all[j].position = j;
         await setBookmarks(all);
@@ -966,8 +973,15 @@ upgradeFavicon(favicon, bm.url);
     delBtn.onclick = async function (e) {
         e.stopPropagation();
         var all = await getBookmarks();
+        var deleted = null;
         for (var a = 0; a < all.length; a++) {
-            if (all[a].id === bm.id) { all.splice(a, 1); break; }
+            if (all[a].id === bm.id) { deleted = all.splice(a, 1)[0]; break; }
+        }
+        if (deleted && deleted.id) {
+            var d = {};
+            try { d = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+            d[deleted.id] = Date.now();
+            localStorage.setItem("_deleted", JSON.stringify(d));
         }
         for (var j = 0; j < all.length; j++) all[j].position = j;
         await setBookmarks(all);
@@ -1092,26 +1106,44 @@ bookmarkBarItems.addEventListener("wheel", function (e) {
     }
 }, { passive: false });
 
-// === Live favicon update: when a site is visited, refresh its icon ===
-chrome.storage.onChanged.addListener(function (changes, areaName) {
-    if (areaName !== "local") return;
-    var updatedDomain = null;
-    for (var key in changes) {
-        if (changes[key].newValue && changes[key].newValue.favicon) {
-            updatedDomain = key;
-            break;
+// === Live favicon update ===
+// Mirror chrome.storage.local favicons → localStorage so getFaviconUrl has no chrome dependency
+(function initFaviconMirror() {
+    chrome.storage.local.get(null, function (items) {
+        var cache = {};
+        for (var key in items) {
+            if (items.hasOwnProperty(key) && items[key] && items[key].favicon) {
+                cache[key] = items[key].favicon;
+            }
         }
-    }
-    if (!updatedDomain) return;
-    var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
-    for (var i = 0; i < items.length; i++) {
-        var url = items[i].dataset.bmUrl;
-        if (url && url.indexOf(updatedDomain) !== -1) {
-            var img = items[i].querySelector(".bm-favicon");
-            if (img) upgradeFavicon(img, url);
+        localStorage.setItem("_favicons", JSON.stringify(cache));
+    });
+
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+        if (areaName !== "local") return;
+        var updatedDomain = null;
+        var cache = {};
+        try { cache = JSON.parse(localStorage.getItem("_favicons") || "{}"); } catch (e) {}
+        for (var key in changes) {
+            if (changes[key].newValue && changes[key].newValue.favicon) {
+                cache[key] = changes[key].newValue.favicon;
+                updatedDomain = key;
+            }
         }
-    }
-});
+        if (updatedDomain) {
+            localStorage.setItem("_favicons", JSON.stringify(cache));
+            // Refresh matching icons on the bar
+            var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+            for (var i = 0; i < items.length; i++) {
+                var url = items[i].dataset.bmUrl;
+                if (url && url.indexOf(updatedDomain) !== -1) {
+                    var img = items[i].querySelector(".bm-favicon");
+                    if (img) upgradeFavicon(img, url);
+                }
+            }
+        }
+    });
+})();
 
 // === Init ===
 document.body.classList.add("bookmark-bar-visible");
