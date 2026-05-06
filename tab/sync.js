@@ -95,7 +95,6 @@ async function signIn() {
     syncId = currentUser.uid;
     docPath = "users/" + syncId + "/data/main";
     try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
-    startPolling();
 
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
     return currentUser;
@@ -106,7 +105,6 @@ function signOut() {
     syncId = null;
     docPath = null;
     localStorage.removeItem("_fbu");
-    stopPolling();
     chrome.runtime.sendMessage({ type: "CLEAR_AUTH_TOKEN" }, function () {});
     if (typeof updateSyncUI === "function") updateSyncUI(null);
 }
@@ -264,7 +262,6 @@ async function initSync() {
         syncId = currentUser.uid;
         docPath = "users/" + syncId + "/data/main";
         try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
-        startPolling();
     }
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
 }
@@ -409,42 +406,18 @@ async function doAutoSave() {
     syncBusy = false;
 }
 
-// === Polling for remote changes ===
-var pollInterval = null;
-var lastRemoteCheck = 0;
-
-function startPolling() {
-    if (pollInterval) return;
-    pollInterval = setInterval(function () {
-        if (getSyncId() && !syncBusy) {
-            pollFromRemote();
-        }
-    }, 60000);
-}
-
-function stopPolling() {
-    if (pollInterval) {
-        clearInterval(pollInterval);
-        pollInterval = null;
-    }
-}
-
-async function pollFromRemote() {
-    if (syncBusy) return;
+// === Load remote changes on tab open ===
+async function pullFromRemote() {
+    if (!getSyncId() || syncBusy) return;
     syncBusy = true;
-    try {
-        await fbLoadAll();
-        lastRemoteCheck = Date.now();
-    } catch (e) {}
+    try { await fbLoadAll(); } catch (e) {}
     syncBusy = false;
 }
 
-// Sync when tab becomes visible (if it's been >30s since last check)
+// Pull remote changes when tab becomes visible (only if signed in)
 document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && getSyncId() && !syncBusy) {
-        if (Date.now() - lastRemoteCheck > 30000) {
-            pollFromRemote();
-        }
+    if (document.visibilityState === "visible" && getSyncId()) {
+        pullFromRemote();
     }
 });
 
