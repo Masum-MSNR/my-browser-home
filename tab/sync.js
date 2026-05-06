@@ -195,17 +195,22 @@ function mergeItems(local, remote, localDeleted, remoteDeleted) {
     return clean;
 }
 
-// Get merged tombstones (local + remote, keep latest)
+// Get merged tombstones (local + remote, keep latest, prune old)
+var TOMBSTONE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 function getMergedTombstones(localDeleted, remoteDeleted) {
     var merged = {};
+    var cutoff = Date.now() - TOMBSTONE_TTL;
     if (localDeleted) {
         for (var k in localDeleted) {
-            if (localDeleted.hasOwnProperty(k)) merged[k] = localDeleted[k];
+            if (localDeleted.hasOwnProperty(k) && localDeleted[k] > cutoff) {
+                merged[k] = localDeleted[k];
+            }
         }
     }
     if (remoteDeleted) {
         for (var k in remoteDeleted) {
-            if (remoteDeleted.hasOwnProperty(k)) {
+            if (remoteDeleted.hasOwnProperty(k) && remoteDeleted[k] > cutoff) {
                 if (!merged[k] || remoteDeleted[k] > merged[k]) merged[k] = remoteDeleted[k];
             }
         }
@@ -342,23 +347,51 @@ async function fbLoadAll() {
     }
 }
 
+// === Sync lock: prevent concurrent save/load ===
+var syncBusy = false;
+
 // === Auto sync ===
 var autoSyncTimer = null;
+var autoSyncRetries = 0;
+
 function autoSync() {
     if (!getSyncId()) return;
     clearTimeout(autoSyncTimer);
     autoSyncTimer = setTimeout(function () {
-        fbSaveAll().catch(function () {});
+        doAutoSave();
     }, 800);
+}
+
+async function doAutoSave() {
+    if (syncBusy) return;
+    syncBusy = true;
+    try {
+        await fbSaveAll();
+        autoSyncRetries = 0;
+    } catch (e) {
+        autoSyncRetries++;
+        if (autoSyncRetries <= 3) {
+            // Retry with backoff
+            setTimeout(function () {
+                syncBusy = false;
+                doAutoSave();
+            }, autoSyncRetries * 2000);
+            return;
+        }
+        autoSyncRetries = 0;
+    }
+    syncBusy = false;
 }
 
 // === Polling for remote changes ===
 var pollInterval = null;
+var lastRemoteCheck = 0;
+
 function startPolling() {
     if (pollInterval) return;
     pollInterval = setInterval(function () {
-        if (getSyncId()) {
-            fbLoadAll().catch(function () {});
+        if (getSyncId() && !syncBusy) {
+            pollFromRemote();
         }
     }, 10000);
 }
@@ -370,10 +403,22 @@ function stopPolling() {
     }
 }
 
-// Sync when tab becomes visible
+async function pollFromRemote() {
+    if (syncBusy) return;
+    syncBusy = true;
+    try {
+        await fbLoadAll();
+        lastRemoteCheck = Date.now();
+    } catch (e) {}
+    syncBusy = false;
+}
+
+// Sync when tab becomes visible (if it's been >30s since last check)
 document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && getSyncId()) {
-        fbLoadAll().catch(function () {});
+    if (document.visibilityState === "visible" && getSyncId() && !syncBusy) {
+        if (Date.now() - lastRemoteCheck > 30000) {
+            pollFromRemote();
+        }
     }
 });
 
