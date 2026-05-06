@@ -365,29 +365,43 @@ var syncBusy = false;
 // === Auto sync ===
 var autoSyncTimer = null;
 var autoSyncRetries = 0;
+var lastWriteTime = 0;
+var MIN_WRITE_INTERVAL = 15000; // 15s between writes
+var pendingChanges = false;
 
 function autoSync() {
     if (!getSyncId()) return;
+    pendingChanges = true;
     clearTimeout(autoSyncTimer);
     autoSyncTimer = setTimeout(function () {
         doAutoSave();
-    }, 800);
+    }, 5000); // 5s debounce
 }
 
 async function doAutoSave() {
     if (syncBusy) return;
+    if (!pendingChanges) return;
+    var now = Date.now();
+    if (now - lastWriteTime < MIN_WRITE_INTERVAL) {
+        // Too soon since last write — reschedule
+        autoSyncTimer = setTimeout(function () {
+            doAutoSave();
+        }, MIN_WRITE_INTERVAL - (now - lastWriteTime) + 1000);
+        return;
+    }
     syncBusy = true;
+    pendingChanges = false;
     try {
         await fbSaveAll();
+        lastWriteTime = Date.now();
         autoSyncRetries = 0;
     } catch (e) {
         autoSyncRetries++;
-        if (autoSyncRetries <= 3) {
-            // Retry with backoff
+        if (autoSyncRetries <= 2) {
             setTimeout(function () {
                 syncBusy = false;
                 doAutoSave();
-            }, autoSyncRetries * 2000);
+            }, autoSyncRetries * 5000);
             return;
         }
         autoSyncRetries = 0;
@@ -405,7 +419,7 @@ function startPolling() {
         if (getSyncId() && !syncBusy) {
             pollFromRemote();
         }
-    }, 30000);
+    }, 60000);
 }
 
 function stopPolling() {
