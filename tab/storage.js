@@ -28,10 +28,10 @@ function updateSyncUI(user) {
     var btn = document.getElementById("sync-btn");
     if (!btn) return;
     if (user) {
-        btn.classList.add("synced");
+        setSyncIcon("synced");
         btn.title = "Signed in as " + user.email;
     } else {
-        btn.classList.remove("synced");
+        btn.classList.remove("synced", "error");
         btn.title = "Sign in with Google to sync";
     }
     renderSyncDropdown(user);
@@ -56,6 +56,8 @@ function renderSyncDropdown(user) {
     var content = document.getElementById("sync-dropdown-content");
     if (!content) return;
 
+    var statusId = "sync-status-msg";
+
     if (user) {
         var initial = user.email.charAt(0).toUpperCase();
         content.innerHTML =
@@ -64,6 +66,7 @@ function renderSyncDropdown(user) {
             '    <div class="sync-dropdown-avatar">' + initial + '</div>' +
             '    <div class="sync-dropdown-email">' + user.email + '</div>' +
             '  </div>' +
+            '  <div id="' + statusId + '" class="sync-status-msg" style="display:none"></div>' +
             '  <div class="sync-dropdown-actions">' +
             '    <button id="sync-now-btn" class="sync-dropdown-btn primary">Sync now</button>' +
             '    <button id="switch-account-btn" class="sync-dropdown-btn ghost">Switch account</button>' +
@@ -71,19 +74,23 @@ function renderSyncDropdown(user) {
             '  </div>' +
             '</div>';
 
+        var statusEl = document.getElementById(statusId);
+
         document.getElementById("sync-now-btn").onclick = async function () {
-            closeSyncDropdown();
-            showSyncBubble("Syncing...", "");
+            statusEl.style.display = "block";
+            statusEl.className = "sync-status-msg";
+            statusEl.textContent = "Syncing...";
             try {
                 await fbSaveAll();
-                showSyncBubble("Synced as " + user.email + " &#10003;", "synced");
+                statusEl.className = "sync-status-msg success";
+                statusEl.textContent = "Synced as " + user.email;
             } catch (err) {
-                showSyncBubble(err.message || "Sync failed", "error");
+                statusEl.className = "sync-status-msg error";
+                statusEl.textContent = err.message || "Sync failed";
             }
         };
 
         document.getElementById("switch-account-btn").onclick = async function () {
-            closeSyncDropdown();
             await signOut();
             await signIn();
         };
@@ -91,23 +98,27 @@ function renderSyncDropdown(user) {
         document.getElementById("signout-btn").onclick = function () {
             closeSyncDropdown();
             signOut();
-            showSyncBubble("Signed out", "");
         };
     } else {
         content.innerHTML =
             '<div class="sync-dropdown-inner">' +
             '  <p class="sync-dropdown-info">Sync your shortcuts and themes across all your devices</p>' +
+            '  <div id="' + statusId + '" class="sync-status-msg error" style="display:none"></div>' +
             '  <button id="signin-dropdown-btn" class="sync-dropdown-btn signin">' +
             '    <i class="fas fa-google"></i> Sign in with Google' +
             '  </button>' +
             '</div>';
 
+        var statusEl = document.getElementById(statusId);
+
         document.getElementById("signin-dropdown-btn").onclick = async function () {
-            closeSyncDropdown();
             try {
                 await signIn();
+                closeSyncDropdown();
             } catch (err) {
-                showSyncBubble(err.message || "Sign-in failed", "error");
+                statusEl.style.display = "block";
+                statusEl.className = "sync-status-msg error";
+                statusEl.textContent = err.message || "Sign-in failed";
             }
         };
     }
@@ -125,6 +136,8 @@ function closeSyncDropdown() {
 
     btn.addEventListener("click", function (e) {
         e.stopPropagation();
+        if (typeof closeDropdown === "function") closeDropdown();
+        if (typeof closeBookmarkDropdown === "function") closeBookmarkDropdown();
         var isOpen = dropdown.classList.toggle("open");
         if (isOpen) renderSyncDropdown(getCurrentUser());
     });

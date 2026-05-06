@@ -16,10 +16,26 @@
     <link rel="stylesheet" href="styles/shortcuts.css" />
     <link rel="stylesheet" href="styles/modal.css" />
     <link rel="stylesheet" href="styles/theme.css" />
+    <link rel="stylesheet" href="styles/bookmarks.css" />
 </head>
 
 <body>
+    <!-- Bookmark Bar -->
+    <div id="bookmark-bar">
+        <div id="bookmark-bar-items" class="bookmark-bar-items"></div>
+    </div>
+
     <div class="container">
+        <!-- Bookmark button (top left) -->
+        <div id="bookmark-corner" class="bookmark-corner">
+            <button id="bookmark-btn" class="corner-btn" title="Bookmarks">
+                <i class="fas fa-bookmark"></i>
+            </button>
+            <div id="bookmark-dropdown" class="sync-dropdown">
+                <div id="bookmark-dropdown-content"></div>
+            </div>
+        </div>
+
         <!-- Sync + Mail buttons (top right) -->
         <div id="sync-corner" class="sync-corner">
             <button id="sync-btn" class="corner-btn corner-btn-sync" title="Sync">
@@ -104,6 +120,7 @@
     <script src="./utils.js"></script>
     <script src="scripts/shortcuts.js"></script>
     <script src="scripts/theme.js"></script>
+    <script src="scripts/bookmarks.js"></script>
 </body>
 
 </html>

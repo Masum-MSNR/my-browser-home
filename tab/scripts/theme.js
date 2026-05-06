@@ -21,72 +21,114 @@ const themes = [
   { name: "Theme 20", url: "https://images.unsplash.com/photo-1495567720989-cebdbdd97913?auto=format&fit=crop&w=1920&q=80" },
 ];
 
-async function applyTheme(url) {
-  document.body.style.backgroundImage = `url('${url}')`;
+var THEME_CACHE_KEY = "themeCache";
+var cachedTheme = null;
+
+async function preloadCache() {
+  var result = await chrome.storage.local.get(THEME_CACHE_KEY);
+  cachedTheme = result[THEME_CACHE_KEY] || null;
+}
+
+function setBodyBackground(url) {
+  document.body.style.backgroundImage = "url('" + url + "')";
   document.body.style.backgroundRepeat = 'no-repeat';
   document.body.style.backgroundPosition = 'center center';
   document.body.style.backgroundAttachment = 'fixed';
   document.body.style.backgroundSize = 'cover';
+}
 
-  await syncSet({ customBg: url });
+function applyBrightnessClass(brightness) {
+  if (brightness < 128) {
+    document.body.classList.add("light-text");
+    document.body.classList.remove("dark-text");
+  } else {
+    document.body.classList.add("dark-text");
+    document.body.classList.remove("light-text");
+  }
+}
 
-  analyzeImageBrightness(url, (brightness) => {
-    if (brightness < 128) {
-      document.body.classList.add("light-text");
-      document.body.classList.remove("dark-text");
-    } else {
-      document.body.classList.add("dark-text");
-      document.body.classList.remove("light-text");
-    }
+function analyzeImage(img) {
+  var canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  var ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+
+  var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  var total = 0;
+  var step = 10;
+
+  for (var i = 0; i < data.length; i += 4 * step) {
+    total += (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
+  }
+
+  return { brightness: total / (data.length / 4 / step), canvas: canvas };
+}
+
+async function downloadAndCache(url) {
+  var img = new Image();
+  img.crossOrigin = "anonymous";
+  return new Promise(function (resolve, reject) {
+    img.onload = function () {
+      var result = analyzeImage(img);
+      var dataUrl = result.canvas.toDataURL("image/jpeg", 0.85);
+      cachedTheme = { url: url, dataUrl: dataUrl, brightness: result.brightness };
+      chrome.storage.local.set({
+        [THEME_CACHE_KEY]: cachedTheme
+      }).catch(function (e) {
+        console.warn("Failed to persist theme cache:", e);
+      });
+      resolve({ dataUrl: dataUrl, brightness: result.brightness });
+    };
+    img.onerror = function () { reject(new Error("Failed to load image")); };
+    img.src = url;
   });
 }
 
-function analyzeImageBrightness(url, callback) {
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.src = url;
+async function applyTheme(url) {
+  // Check preloaded cache first — no network if already cached
+  if (cachedTheme && cachedTheme.url === url && cachedTheme.dataUrl) {
+    setBodyBackground(cachedTheme.dataUrl);
+    applyBrightnessClass(cachedTheme.brightness);
+  } else {
+    // No cache: paint remote URL for first frame, then download
+    setBodyBackground(url);
 
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    canvas.width = img.width;
-    canvas.height = img.height;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let total = 0;
-    const step = 10;
-
-    for (let i = 0; i < data.length; i += 4 * step) {
-      const r = data[i];
-      const g = data[i + 1];
-      const b = data[i + 2];
-      const luminance = (r * 299 + g * 587 + b * 114) / 1000;
-      total += luminance;
+    try {
+      var result = await downloadAndCache(url);
+      setBodyBackground(result.dataUrl);
+      applyBrightnessClass(result.brightness);
+    } catch (e) {
+      console.warn("Theme caching failed, falling back to URL:", e.message);
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function () {
+        applyBrightnessClass(analyzeImage(img).brightness);
+      };
+      img.src = url;
     }
+  }
 
-    const avgBrightness = total / (data.length / 4 / step);
-    callback(avgBrightness);
-  };
+  await syncSet({ customBg: url });
 }
 
 function renderThemeOptions() {
-  const container = document.getElementById("theme-options");
+  var container = document.getElementById("theme-options");
   container.innerHTML = '';
-  themes.forEach(theme => {
-    const img = document.createElement("img");
+  themes.forEach(function (theme) {
+    var img = document.createElement("img");
     img.src = theme.url;
     img.alt = theme.name;
     img.className = "theme-thumb";
     img.title = theme.name;
-    img.onclick = () => applyTheme(theme.url);
+    img.onclick = function () { applyTheme(theme.url); };
     container.appendChild(img);
   });
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const saved = await syncGet("customBg");
+document.addEventListener("DOMContentLoaded", async function () {
+  await preloadCache();
+  var saved = await syncGet("customBg");
   if (saved) {
     applyTheme(saved);
   } else {
@@ -94,16 +136,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   renderThemeOptions();
 
-  document.getElementById("open-theme-panel").addEventListener("click", () => {
+  document.getElementById("open-theme-panel").addEventListener("click", function () {
     document.getElementById("theme-panel").classList.add("open");
   });
 
-  document.querySelector(".close-theme-panel").addEventListener("click", () => {
+  document.querySelector(".close-theme-panel").addEventListener("click", function () {
     document.getElementById("theme-panel").classList.remove("open");
   });
 });
 
-window.addEventListener("syncdataloaded", async () => {
-  const saved = await syncGet("customBg");
+window.addEventListener("syncdataloaded", async function () {
+  var saved = await syncGet("customBg");
   if (saved) applyTheme(saved);
 });

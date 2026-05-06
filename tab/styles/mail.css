@@ -1,6 +1,6 @@
 .mail-corner {
     position: fixed;
-    top: 1.25rem;
+    top: calc(42px + 0.5rem);
     right: 1.25rem;
     z-index: 100;
 }

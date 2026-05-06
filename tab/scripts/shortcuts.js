@@ -53,17 +53,19 @@ async function renderShortcuts() {
 
     const link = document.createElement("a");
     link.href = shortcut.url;
+    link.draggable = false;
     const favicon = await getFaviconUrl(shortcut.url);
 
     link.innerHTML = `
       <div class="shortcut-icon-wrapper">
-        <img src="${favicon}" class="shortcut-icon" alt="" />
+        <img src="${favicon}" class="shortcut-icon" alt="" draggable="false" />
       </div>
       <div class="shortcut-label">${shortcut.name}</div>
     `;
 
     const menuBtn = document.createElement("button");
     menuBtn.className = "shortcut-menu-btn";
+    menuBtn.draggable = false;
     menuBtn.innerHTML = "⋮";
 
     const menu = document.createElement("div");
@@ -106,6 +108,8 @@ async function renderShortcuts() {
       renderShortcuts();
     };
 
+    var dragCounter = 0;
+
     div.addEventListener("dragstart", (e) => {
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", index);
@@ -116,28 +120,37 @@ async function renderShortcuts() {
       div.classList.remove("dragging");
       document.querySelectorAll(".shortcut-item").forEach(item => {
         item.classList.remove("drag-over");
+        item._dragCounter = 0;
       });
     });
 
     div.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
+      if (!div.classList.contains("add-shortcut-btn") && !div.classList.contains("dragging")) {
+        div.classList.add("drag-over");
+      }
     });
 
     div.addEventListener("dragenter", (e) => {
       e.preventDefault();
-      if (!div.classList.contains("add-shortcut-btn")) {
+      div._dragCounter = (div._dragCounter || 0) + 1;
+      if (!div.classList.contains("add-shortcut-btn") && !div.classList.contains("dragging")) {
         div.classList.add("drag-over");
       }
     });
 
     div.addEventListener("dragleave", () => {
-      div.classList.remove("drag-over");
+      div._dragCounter = (div._dragCounter || 0) - 1;
+      if (div._dragCounter <= 0) {
+        div.classList.remove("drag-over");
+      }
     });
 
     div.addEventListener("drop", async (e) => {
       e.preventDefault();
       e.stopPropagation();
+      div._dragCounter = 0;
       div.classList.remove("drag-over");
       const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
       if (isNaN(fromIndex) || fromIndex === index) return;
@@ -146,13 +159,25 @@ async function renderShortcuts() {
       if (!Array.isArray(all)) all = [];
       var moved = all.splice(fromIndex, 1)[0];
       all.splice(index, 0, moved);
-      // Update positions and timestamp for moved item
       for (var i = 0; i < all.length; i++) {
         all[i].position = i;
       }
       if (moved) moved.updatedAt = Date.now();
       await setShortcuts(all);
-      renderShortcuts();
+
+      // Move DOM element for smooth visual swap
+      var items = shortcutList.querySelectorAll(".shortcut-item:not(.add-shortcut-btn)");
+      var dragItem = items[fromIndex];
+      var targetItem = items[index];
+      if (dragItem && targetItem && dragItem !== targetItem) {
+        if (fromIndex < index) {
+          targetItem.after(dragItem);
+        } else {
+          targetItem.before(dragItem);
+        }
+        dragItem.classList.add("settled");
+        setTimeout(function () { dragItem.classList.remove("settled"); }, 300);
+      }
     });
 
     div.appendChild(link);
@@ -182,17 +207,11 @@ function addAddShortcutButton() {
   addShortcutButton.addEventListener("dragover", (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    addShortcutButton.classList.add("drag-over");
-  });
-
-  addShortcutButton.addEventListener("dragleave", () => {
-    addShortcutButton.classList.remove("drag-over");
   });
 
   addShortcutButton.addEventListener("drop", async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    addShortcutButton.classList.remove("drag-over");
     const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
     if (isNaN(fromIndex)) return;
 
@@ -204,7 +223,15 @@ function addAddShortcutButton() {
       for (var i = 0; i < all.length; i++) { all[i].position = i; }
       if (moved) moved.updatedAt = Date.now();
       await setShortcuts(all);
-      renderShortcuts();
+
+      // Move DOM element to end (before add button)
+      var items = shortcutList.querySelectorAll(".shortcut-item:not(.add-shortcut-btn)");
+      var dragItem = items[fromIndex];
+      if (dragItem) {
+        addShortcutButton.before(dragItem);
+        dragItem.classList.add("settled");
+        setTimeout(function () { dragItem.classList.remove("settled"); }, 300);
+      }
     }
   });
 

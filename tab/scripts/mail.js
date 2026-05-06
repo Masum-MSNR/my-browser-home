@@ -10,6 +10,8 @@ function closeDropdown() {
 
 mailDropdownBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    closeSyncDropdown();
+    if (typeof closeBookmarkDropdown === "function") closeBookmarkDropdown();
     const isOpen = mailDropdown.classList.toggle("open");
     mailDropdownBtn.classList.toggle("active", isOpen);
 });

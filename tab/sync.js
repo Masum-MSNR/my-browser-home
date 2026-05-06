@@ -94,7 +94,7 @@ async function signIn() {
 
     syncId = currentUser.uid;
     docPath = "users/" + syncId + "/data/main";
-    try { await fbLoadAll(); } catch (e) {}
+    try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
 
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
     return currentUser;
@@ -185,30 +185,44 @@ var docPath = null;
 
 async function fbGet(path, retry) {
     if (retry === undefined) retry = true;
-    var r = await fetch(FB_BASE + "/" + path, {
-        headers: { Authorization: "Bearer " + (await fbToken()) }
-    });
-    if (r.status === 404) return null;
-    if ((r.status === 401 || r.status === 403) && retry) {
-        await refreshToken();
-        return fbGet(path, false);
+    try {
+        var r = await fetch(FB_BASE + "/" + path, {
+            headers: { Authorization: "Bearer " + (await fbToken()) }
+        });
+        if (r.status === 404) return null;
+        if ((r.status === 401 || r.status === 403) && retry) {
+            await refreshToken();
+            return fbGet(path, false);
+        }
+        var d = await r.json();
+        return d.fields ? unmap(d) : null;
+    } catch (e) {
+        if (retry) {
+            return fbGet(path, false);
+        }
+        throw e;
     }
-    var d = await r.json();
-    return d.fields ? unmap(d) : null;
 }
 
 async function fbSet(path, obj, retry) {
     if (retry === undefined) retry = true;
-    var r = await fetch(FB_BASE + "/" + path, {
-        method: "PATCH",
-        headers: { Authorization: "Bearer " + (await fbToken()), "Content-Type": "application/json" },
-        body: JSON.stringify({ fields: map(obj) })
-    });
-    if ((r.status === 401 || r.status === 403) && retry) {
-        await refreshToken();
-        return fbSet(path, obj, false);
+    try {
+        var r = await fetch(FB_BASE + "/" + path, {
+            method: "PATCH",
+            headers: { Authorization: "Bearer " + (await fbToken()), "Content-Type": "application/json" },
+            body: JSON.stringify({ fields: map(obj) })
+        });
+        if ((r.status === 401 || r.status === 403) && retry) {
+            await refreshToken();
+            return fbSet(path, obj, false);
+        }
+        if (!r.ok) throw new Error(((await r.json()).error || {}).message || "Write failed");
+    } catch (e) {
+        if (retry) {
+            return fbSet(path, obj, false);
+        }
+        throw e;
     }
-    if (!r.ok) throw new Error(((await r.json()).error || {}).message || "Write failed");
 }
 
 async function initSync() {
@@ -217,7 +231,7 @@ async function initSync() {
         currentUser = cached;
         syncId = currentUser.uid;
         docPath = "users/" + syncId + "/data/main";
-        try { await fbLoadAll(); } catch (e) {}
+        try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
     }
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
 }
@@ -227,34 +241,69 @@ async function fbSaveAll() {
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
     var local = (await syncGet("shortcuts")) || [];
+    var localBookmarks = (await syncGet("bookmarks")) || [];
+    var localFolders = (await syncGet("bookmarkFolders")) || [];
     var customBg = (await syncGet("customBg")) || null;
 
     var remote = [];
+    var remoteBookmarks = [];
+    var remoteFolders = [];
     try {
         var doc = await fbGet(docPath);
         if (doc && doc.shortcuts) remote = doc.shortcuts;
-    } catch (e) {}
+        if (doc && doc.bookmarks) remoteBookmarks = doc.bookmarks;
+        if (doc && doc.bookmarkFolders) remoteFolders = doc.bookmarkFolders;
+    } catch (e) { setSyncIcon("error"); }
 
-    var merged = mergeShortcuts(local, remote);
-    await syncSet({ shortcuts: merged });
-    await fbSet(docPath, { shortcuts: merged, customBg: customBg });
-    window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    try {
+        var merged = mergeShortcuts(local, remote);
+        var mergedBookmarks = mergeShortcuts(localBookmarks, remoteBookmarks);
+        var mergedFolders = mergeShortcuts(localFolders, remoteFolders);
+        await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
+        await fbSet(docPath, { shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders, customBg: customBg });
+        setSyncIcon("synced");
+        window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    } catch (e) {
+        setSyncIcon("error");
+        throw e;
+    }
+
 }
 
 async function fbLoadAll() {
     if (!getSyncId()) return;
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
-    var d = await fbGet(docPath);
-    if (!d) return;
+    try {
+        var d = await fbGet(docPath);
+        if (!d) return;
 
-    var local = (await syncGet("shortcuts")) || [];
-    var remote = d.shortcuts || [];
-    var merged = mergeShortcuts(local, remote);
+        var local = (await syncGet("shortcuts")) || [];
+        var localBookmarks = (await syncGet("bookmarks")) || [];
+        var localFolders = (await syncGet("bookmarkFolders")) || [];
+        var remote = d.shortcuts || [];
+        var remoteBookmarks = d.bookmarks || [];
+        var remoteFolders = d.bookmarkFolders || [];
+        var merged = mergeShortcuts(local, remote);
+        var mergedBookmarks = mergeShortcuts(localBookmarks, remoteBookmarks);
+        var mergedFolders = mergeShortcuts(localFolders, remoteFolders);
 
-    await syncSet({ shortcuts: merged });
-    if (d.customBg) await syncSet({ customBg: d.customBg });
-    window.dispatchEvent(new CustomEvent("syncdataloaded"));
+        await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
+        if (d.customBg) await syncSet({ customBg: d.customBg });
+        setSyncIcon("synced");
+        window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    } catch (e) {
+        setSyncIcon("error");
+        throw e;
+    }
+}
+
+function setSyncIcon(state) {
+    var btn = document.getElementById("sync-btn");
+    if (!btn) return;
+    btn.classList.remove("synced", "error");
+    if (state === "synced") btn.classList.add("synced");
+    else if (state === "error") btn.classList.add("error");
 }
 
 function getCurrentUser() {

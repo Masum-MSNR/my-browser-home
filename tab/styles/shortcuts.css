@@ -9,9 +9,15 @@
     text-align: center;
     cursor: grab;
     text-decoration: none;
-    transition: opacity 0.2s, transform 0.2s;
+    transition: opacity 0.2s, transform 0.25s ease, outline 0.15s ease;
     border-radius: 10px;
     padding: 0.5rem 0.25rem;
+}
+
+.shortcut-item a,
+.shortcut-item img,
+.shortcut-item button {
+    -webkit-user-drag: none;
 }
 
 .shortcut-item:active {
@@ -24,9 +30,20 @@
 }
 
 .shortcut-item.drag-over {
-    outline: 2px dashed rgba(255, 255, 255, 0.4);
+    outline: 2px dashed rgba(255, 255, 255, 0.5);
     outline-offset: 4px;
     border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+@keyframes settle-bounce {
+    0% { transform: scale(0.95); }
+    50% { transform: scale(1.04); }
+    100% { transform: scale(1); }
+}
+
+.shortcut-item.settled {
+    animation: settle-bounce 0.3s ease;
 }
 
 .shortcut-item:hover .shortcut-menu-btn {
@@ -128,12 +145,6 @@
     transition: background-color 0.2s ease;
     text-decoration: none;
     position: relative;
-}
-
-.add-shortcut-btn.drag-over {
-    outline: 2px dashed rgba(255, 255, 255, 0.4);
-    outline-offset: 4px;
-    border-radius: 10px;
 }
 
 .add-shortcut-btn .add-icon {

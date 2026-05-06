@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mergeShortcuts Tests</title>
+<style>
+  body { font-family: monospace; max-width: 900px; margin: 2rem auto; background: #0f172a; color: #e2e8f0; }
+  h1 { color: #00ff66; }
+  .test { padding: 0.5rem 1rem; margin: 0.25rem 0; border-radius: 4px; }
+  .pass { background: #064e3b; }
+  .fail { background: #7f1d1d; }
+  .summary { margin-top: 1rem; padding: 1rem; border-radius: 8px; }
+  .all-pass { background: #064e3b; }
+  .some-fail { background: #7f1d1d; }
+</style>
+</head>
+<body>
+<h1>mergeShortcuts — Unit Tests</h1>
+<div id="results"></div>
+<script>
+// === Functions under test (copied from sync.js) ===
+function ensureShortcut(s, pos) {
+    if (!s || !s.url) return null;
+    if (!s.id) s.id = crypto.randomUUID();
+    if (!s.updatedAt) s.updatedAt = Date.now();
+    if (pos !== undefined) s.position = pos;
+    if (s.position === undefined) s.position = 0;
+    return s;
+}
+
+function mergeShortcuts(local, remote) {
+    var byId = {};
+    var tombstones = {};
+    try { tombstones = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+
+    for (var i = 0; i < local.length; i++) {
+        var s = ensureShortcut(local[i], i);
+        if (!s) continue;
+        byId[s.id] = s;
+    }
+
+    for (var i = 0; i < remote.length; i++) {
+        var s = ensureShortcut(remote[i]);
+        if (!s) continue;
+
+        var delTs = tombstones[s.id];
+        if (delTs && delTs > s.updatedAt) continue;
+
+        var existing = byId[s.id];
+        if (!existing || s.updatedAt > existing.updatedAt) {
+            byId[s.id] = s;
+        }
+    }
+
+    var result = [];
+    for (var id in byId) {
+        if (byId.hasOwnProperty(id)) result.push(byId[id]);
+    }
+    result.sort(function (a, b) { return a.position - b.position; });
+
+    var clean = [];
+    for (var i = 0; i < result.length; i++) {
+        if (result[i] && result[i].url) {
+            result[i].position = i;
+            clean.push(result[i]);
+        }
+    }
+    return clean;
+}
+
+// === Test harness ===
+var passed = 0;
+var failed = 0;
+var output = document.getElementById("results");
+
+function log(label, ok) {
+    var div = document.createElement("div");
+    div.className = "test " + (ok ? "pass" : "fail");
+    div.textContent = (ok ? "PASS" : "FAIL") + " — " + label;
+    output.appendChild(div);
+    if (ok) passed++; else failed++;
+}
+
+function assert(label, condition) { log(label, condition); }
+function assertDeepEqual(label, a, b) {
+    var ok = JSON.stringify(a) === JSON.stringify(b);
+    log(label, ok);
+    if (!ok) log("  expected: " + JSON.stringify(b), false);
+    if (!ok) log("  got:      " + JSON.stringify(a), false);
+}
+
+// Helper: make a shortcut object
+function S(id, url, updatedAt, position) {
+    return { id: id, url: url || "https://" + id + ".com", name: id, updatedAt: updatedAt || 1000, position: position !== undefined ? position : 0 };
+}
+
+// === Tests ===
+localStorage.clear();
+
+// Test 1: empty inputs
+assertDeepEqual("empty local + empty remote", mergeShortcuts([], []), []);
+
+// Test 2: local only, no remote
+var local = [S("a", "https://a.com", 2000, 0)];
+assertDeepEqual("local only, no remote", mergeShortcuts(local, []), [S("a", "https://a.com", 2000, 0)]);
+
+// Test 3: remote only, no local
+assertDeepEqual("remote only, no local", mergeShortcuts([], [S("b", "https://b.com", 3000, 0)]), [S("b", "https://b.com", 3000, 0)]);
+
+// Test 4: remote newer wins
+var local2 = [S("x", "https://old.com", 1000, 0)];
+var remote2 = [S("x", "https://new.com", 2000, 0)];
+var result4 = mergeShortcuts(local2, remote2);
+assert("remote newer overwrites local", result4[0].url === "https://new.com" && result4[0].updatedAt === 2000);
+
+// Test 5: local newer wins
+var local3 = [S("x", "https://local-newer.com", 3000, 0)];
+var remote3 = [S("x", "https://remote-older.com", 2000, 0)];
+var result5 = mergeShortcuts(local3, remote3);
+assert("local newer keeps local value", result5[0].url === "https://local-newer.com" && result5[0].updatedAt === 3000);
+
+// Test 6: positions are reindexed
+var local4 = [S("a", "https://a.com", 1000, 5), S("b", "https://b.com", 1000, 9)];
+var result6 = mergeShortcuts(local4, []);
+assert("positions reindexed to 0,1", result6[0].position === 0 && result6[1].position === 1);
+
+// Test 7: tombstone blocks older remote
+localStorage.setItem("_deleted", JSON.stringify({ "z": 3000 }));
+var local5 = [];
+var remote5 = [S("z", "https://z.com", 2000, 0)];
+var result7 = mergeShortcuts(local5, remote5);
+assert("tombstone blocks older remote item", result7.length === 0);
+
+// Test 8: tombstone loses to newer remote
+localStorage.setItem("_deleted", JSON.stringify({ "z": 2000 }));
+var remote6 = [S("z", "https://z.com", 3000, 0)];
+var result8 = mergeShortcuts([], remote6);
+assert("tombstone loses to newer remote", result8.length === 1 && result8[0].id === "z");
+
+// Test 9: null shortcuts filtered
+var local7 = [null, S("a", "https://a.com", 1000, 0), { url: null }];
+var result9 = mergeShortcuts(local7, []);
+assert("null and invalid shortcuts filtered", result9.length === 1);
+
+// Test 10: mixed local + remote with different items
+localStorage.clear();
+var local8 = [S("a", "https://a.com", 2000, 0), S("b", "https://b.com", 5000, 1)];
+var remote8 = [S("b", "https://b-remote.com", 4000, 0), S("c", "https://c.com", 3000, 1)];
+var result10 = mergeShortcuts(local8, remote8);
+assert("mixed merge has correct count", result10.length === 3);
+assert("local b wins over remote b (local newer)", result10.find(function(s){return s.id==="b"}).updatedAt === 5000);
+assert("remote c added to merge", result10.some(function(s){return s.id==="c"}));
+
+// Test 11: duplicate ids in local (defensive)
+var local9 = [S("dup", "https://first.com", 1000, 0), S("dup", "https://second.com", 2000, 1)];
+var result11 = mergeShortcuts(local9, []);
+// Last one wins due to object key overwrite, then sorted
+assert("duplicate ids in local handled", result11.length === 1);
+
+// Test 12: empty url in remote filtered
+var remote9 = [S("e", "", 1000, 0)];
+var result12 = mergeShortcuts([], remote9);
+assert("empty url in remote filtered", result12.length === 0);
+
+// === Summary ===
+var summary = document.createElement("div");
+summary.className = "summary " + (failed === 0 ? "all-pass" : "some-fail");
+summary.innerHTML = "<strong>" + passed + "/" + (passed + failed) + " tests passed</strong>" +
+    (failed === 0 ? " — all good!" : " — " + failed + " failures");
+output.appendChild(summary);
+</script>
+</body>
+</html>

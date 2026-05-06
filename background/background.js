@@ -1,3 +1,5 @@
+importScripts('../tab/utils.js');
+
 chrome.webNavigation.onCompleted.addListener(async function (details) {
     var tabId = details.tabId;
 
@@ -16,16 +18,6 @@ chrome.webNavigation.onCompleted.addListener(async function (details) {
         chrome.storage.local.set({ [rootDomain]: pageData });
     });
 });
-
-function getFullDomain(url) {
-    try {
-        var hostname = new URL(url).hostname.toLowerCase();
-        return hostname.replace(/^www\./, '');
-    } catch (e) {
-        console.warn("Invalid URL:", url);
-        return '';
-    }
-}
 
 var CLIENT_ID = "692720523871-cd6v5ba5ancrjj92iljqhhcr7vrbl8sn.apps.googleusercontent.com";
 
