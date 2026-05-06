@@ -77,32 +77,16 @@ var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
   '<path d="M2 12h20"/><path d="M12 2v20"/></svg>'
 );
 
-// Set favicon with fallback: cached → S2 → direct /favicon.ico → built-in globe
+// Set favicon with fallback: S2 → built-in globe (always succeeds, no CORP errors)
 function setFaviconWithFallback(img, url, cachedUrl) {
   var currentSrc = img.src;
   if (currentSrc && !currentSrc.startsWith("data:") && img.naturalWidth > 0) return;
   if (cachedUrl) { img.src = cachedUrl; return; }
 
-  var s2 = getFaviconUrlSync(url);
-  img.src = s2;
-  img.dataset.favRetry = "0";
-
+  img.src = getFaviconUrlSync(url);
   img.onerror = function () {
-    var retry = parseInt(img.dataset.favRetry || "0");
-    if (retry === 0) {
-      // Try direct favicon.ico
-      try {
-        img.src = "https://" + new URL(url).hostname + "/favicon.ico";
-        img.dataset.favRetry = "1";
-      } catch (e) {
-        img.src = DEFAULT_FAVICON;
-        img.onerror = null;
-      }
-    } else if (retry === 1) {
-      // Last resort: built-in globe icon
-      img.src = DEFAULT_FAVICON;
-      img.onerror = null;
-    }
+    img.src = DEFAULT_FAVICON;
+    img.onerror = null;
   };
 }
 
