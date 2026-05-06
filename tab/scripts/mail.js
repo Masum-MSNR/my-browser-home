@@ -145,10 +145,19 @@ async function scanAccountChooserPageAndSave() {
 }
 
 if (mailDropdownHeader) {
-    const addBtn = document.createElement("button");
+    var refreshBtn = document.createElement("button");
+    refreshBtn.className = "mail-add-account";
+    refreshBtn.title = "Scan for accounts";
+    refreshBtn.innerHTML = '<span class="add-account-icon"><i class="fas fa-sync-alt"></i></span>';
+    refreshBtn.addEventListener("click", function () {
+        scanAccountChooserPageAndSave();
+    });
+    mailDropdownHeader.appendChild(refreshBtn);
+
+    var addBtn = document.createElement("button");
     addBtn.className = "mail-add-account";
     addBtn.innerHTML = '<span class="add-account-icon"><i class="fas fa-plus"></i></span>';
-    addBtn.addEventListener("click", () => {
+    addBtn.addEventListener("click", function () {
         window.open(
             "https://accounts.google.com/v3/signin/identifier?continue=https://www.google.com?hl=en-US&ec=GAlA8wE&hl=en&flowName=GlifWebSignIn&flowEntry=AddSession",
             "_blank"
@@ -158,4 +167,3 @@ if (mailDropdownHeader) {
 }
 
 renderMailList();
-scanAccountChooserPageAndSave();

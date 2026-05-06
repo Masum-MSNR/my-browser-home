@@ -9,29 +9,6 @@ const syncNameBtn = document.getElementById("sync-name-btn");
 
 let editingShortcut = null;
 
-async function getFaviconUrl(link) {
-  return new Promise((resolve) => {
-    try {
-      const urlObj = new URL(link);
-      const rootDomain = getFullDomain(urlObj.href);
-
-      if (!rootDomain) {
-        return resolve(`https://www.google.com/s2/favicons?sz=64&domain=${urlObj.hostname}`);
-      }
-
-      chrome.storage.local.get(rootDomain, (result) => {
-        if (result && result[rootDomain] && result[rootDomain].favicon) {
-          resolve(result[rootDomain].favicon);
-        } else {
-          resolve(`https://www.google.com/s2/favicons?sz=64&domain=${rootDomain}`);
-        }
-      });
-    } catch {
-      resolve(`https://www.google.com/s2/favicons?sz=64&domain=${link}`);
-    }
-  });
-}
-
 async function getShortcuts() {
   return await syncGet("shortcuts") || [];
 }

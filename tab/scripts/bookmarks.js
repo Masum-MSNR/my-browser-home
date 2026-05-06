@@ -25,25 +25,6 @@ async function setFolders(val) {
 }
 
 // === Favicon ===
-function getFaviconUrl(link) {
-    return new Promise(function (resolve) {
-        try {
-            var urlObj = new URL(link);
-            var rootDomain = getFullDomain(urlObj.href);
-            if (!rootDomain) return resolve("https://www.google.com/s2/favicons?sz=64&domain=" + urlObj.hostname);
-            chrome.storage.local.get(rootDomain, function (result) {
-                if (result && result[rootDomain] && result[rootDomain].favicon) {
-                    resolve(result[rootDomain].favicon);
-                } else {
-                    resolve("https://www.google.com/s2/favicons?sz=64&domain=" + rootDomain);
-                }
-            });
-        } catch (e) {
-            resolve("https://www.google.com/s2/favicons?sz=64&domain=" + link);
-        }
-    });
-}
-
 // === Collect all bookmarks in a folder (recursive) ===
 async function getAllBookmarksInFolder(folderId) {
     var all = await getBookmarks();

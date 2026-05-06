@@ -36,3 +36,11 @@ function getFullDomain(url) {
     return '';
   }
 }
+
+function getFaviconUrl(url) {
+  try {
+    return "chrome://favicon2/?size=32&pageUrl=" + encodeURIComponent(url);
+  } catch (e) {
+    return "";
+  }
+}

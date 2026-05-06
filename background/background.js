@@ -1,24 +1,3 @@
-importScripts('../tab/utils.js');
-
-chrome.webNavigation.onCompleted.addListener(async function (details) {
-    var tabId = details.tabId;
-
-    chrome.tabs.get(tabId, async function (tab) {
-        if (!tab || !tab.url || !tab.favIconUrl) return;
-
-        var rootDomain = getFullDomain(tab.url);
-        if (!rootDomain) return;
-
-        var pageData = {
-            url: tab.url,
-            favicon: tab.favIconUrl,
-            title: tab.title || tab.url
-        };
-
-        chrome.storage.local.set({ [rootDomain]: pageData });
-    });
-});
-
 var CLIENT_ID = "692720523871-cd6v5ba5ancrjj92iljqhhcr7vrbl8sn.apps.googleusercontent.com";
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
