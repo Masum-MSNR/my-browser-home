@@ -1106,11 +1106,23 @@ bookmarkBarItems.addEventListener("wheel", function (e) {
 
 // === Live favicon refresh: try to upgrade icons from cached real favicons ===
 function refreshAllFaviconsFromCache() {
-    var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
-    for (var i = 0; i < items.length; i++) {
-        var url = items[i].dataset.bmUrl;
-        var img = items[i].querySelector(".bm-favicon");
+    // Top bar
+    var barItems = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+    for (var i = 0; i < barItems.length; i++) {
+        var url = barItems[i].dataset.bmUrl;
+        var img = barItems[i].querySelector(".bm-favicon");
         if (url && img) refreshFaviconFromCache(img, url);
+    }
+    // Dialog dropdown (if open)
+    var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
+    for (var j = 0; j < dlItems.length; j++) {
+        if (dlItems[j].dataset.bmUrl) refreshFaviconFromCache(dlItems[j], dlItems[j].dataset.bmUrl);
+    }
+    // Submenu (if open)
+    var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark img");
+    for (var k = 0; k < subItems.length; k++) {
+        var a = subItems[k].parentNode;
+        if (a && a.href) refreshFaviconFromCache(subItems[k], a.href);
     }
 }
 
