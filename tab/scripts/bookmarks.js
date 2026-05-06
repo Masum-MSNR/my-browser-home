@@ -932,6 +932,7 @@ function createBookmarkItem(bm, idx) {
     var favicon = document.createElement("img");
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
+    favicon.dataset.bmUrl = bm.url;
     setFaviconWithFallback(favicon, bm.url);
 
     var name = document.createElement("span");
@@ -1122,13 +1123,26 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
         }
     }
     if (!updatedDomain) return;
-    var items = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
-    for (var i = 0; i < items.length; i++) {
-        var url = items[i].dataset.bmUrl;
+    // Refresh on top bar
+    var barItems = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+    for (var i = 0; i < barItems.length; i++) {
+        var url = barItems[i].dataset.bmUrl;
         if (url && url.indexOf(updatedDomain) !== -1) {
-            var img = items[i].querySelector(".bm-favicon");
+            var img = barItems[i].querySelector(".bm-favicon");
             if (img) refreshFaviconFromCache(img, url);
         }
+    }
+    // Refresh in dialog dropdown (if open)
+    var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bookmark-dropdown-item");
+    for (var j = 0; j < dlItems.length; j++) {
+        var dlImg = dlItems[j].querySelector(".bm-dl-favicon");
+        if (dlImg) refreshFaviconFromCache(dlImg, dlImg.dataset.bmUrl || "");
+    }
+    // Refresh in submenu (if open)
+    var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark");
+    for (var k = 0; k < subItems.length; k++) {
+        var subImg = subItems[k].querySelector("img");
+        if (subImg) refreshFaviconFromCache(subImg, subItems[k].href);
     }
 });
 
