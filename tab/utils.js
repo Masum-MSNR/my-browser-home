@@ -69,24 +69,49 @@ function getFaviconUrlSync(url) {
   }
 }
 
-// Set favicon with fallback chain: S2 → direct /favicon.ico → hide
-function setFaviconWithFallback(img, url) {
+// Built-in globe favicon (data URI) — always available, no network needed
+var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5">' +
+  '<circle cx="12" cy="12" r="10"/>' +
+  '<ellipse cx="12" cy="12" rx="4" ry="10"/>' +
+  '<path d="M2 12h20"/><path d="M12 2v20"/></svg>'
+);
+
+// Set favicon with fallback: cached → S2 → direct /favicon.ico → built-in globe
+function setFaviconWithFallback(img, url, cachedUrl) {
+  var currentSrc = img.src;
+  if (currentSrc && !currentSrc.startsWith("data:") && img.naturalWidth > 0) return;
+  if (cachedUrl) { img.src = cachedUrl; return; }
+
   var s2 = getFaviconUrlSync(url);
   img.src = s2;
-  img.dataset.favTried = "s2";
+  img.dataset.favRetry = "0";
 
   img.onerror = function () {
-    if (img.dataset.favTried === "s2") {
+    var retry = parseInt(img.dataset.favRetry || "0");
+    if (retry === 0) {
       // Try direct favicon.ico
       try {
-        var domain = new URL(url).hostname;
-        img.src = "https://" + domain + "/favicon.ico";
-        img.dataset.favTried = "direct";
+        img.src = "https://" + new URL(url).hostname + "/favicon.ico";
+        img.dataset.favRetry = "1";
       } catch (e) {
-        img.style.display = "none";
+        img.src = DEFAULT_FAVICON;
+        img.onerror = null;
       }
-    } else {
-      img.style.display = "none";
+    } else if (retry === 1) {
+      // Last resort: built-in globe icon
+      img.src = DEFAULT_FAVICON;
+      img.onerror = null;
     }
   };
+}
+
+// Update favicon only if we have a better (real) one
+function upgradeFavicon(img, url) {
+  getFaviconUrl(url).then(function (u) {
+    if (u && u.indexOf("google.com/s2") === -1) {
+      img.src = u;
+      img.onerror = null;
+    }
+  });
 }

@@ -149,7 +149,7 @@ function createBarBookmarkItem(bm, idx) {
     favicon.draggable = false;
     favicon.alt = "";
     setFaviconWithFallback(favicon, bm.url);
-getFaviconUrl(bm.url).then(function (u) { favicon.src = u; favicon.onerror = null; });
+upgradeFavicon(favicon, bm.url);
 
     var name = document.createElement("span");
     name.className = "bm-title";
@@ -283,7 +283,7 @@ function createSubmenuBookmarkItem(bm) {
     favicon.style.width = "14px";
     favicon.style.height = "14px";
     setFaviconWithFallback(favicon, bm.url);
-getFaviconUrl(bm.url).then(function (u) { favicon.src = u; favicon.onerror = null; });
+upgradeFavicon(favicon, bm.url);
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
     return item;
@@ -928,7 +928,7 @@ function createBookmarkItem(bm, idx) {
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
     setFaviconWithFallback(favicon, bm.url);
-getFaviconUrl(bm.url).then(function (u) { favicon.src = u; favicon.onerror = null; });
+upgradeFavicon(favicon, bm.url);
 
     var name = document.createElement("span");
     name.className = "bm-dl-name";
@@ -1108,9 +1108,7 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
         var url = items[i].dataset.bmUrl;
         if (url && url.indexOf(updatedDomain) !== -1) {
             var img = items[i].querySelector(".bm-favicon");
-            if (img) {
-                getFaviconUrl(url).then(function (u) { img.src = u; img.onerror = null; });
-            }
+            if (img) upgradeFavicon(img, url);
         }
     }
 });
