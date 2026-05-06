@@ -148,8 +148,8 @@ function createBarBookmarkItem(bm, idx) {
     favicon.className = "bm-favicon";
     favicon.draggable = false;
     favicon.alt = "";
-    favicon.src = getFaviconUrlSync(bm.url);
-getFaviconUrl(bm.url).then(function (u) { favicon.src = u; });
+    setFaviconWithFallback(favicon, bm.url);
+getFaviconUrl(bm.url).then(function (u) { favicon.src = u; favicon.onerror = null; });
 
     var name = document.createElement("span");
     name.className = "bm-title";
@@ -282,8 +282,8 @@ function createSubmenuBookmarkItem(bm) {
     favicon.alt = "";
     favicon.style.width = "14px";
     favicon.style.height = "14px";
-    favicon.src = getFaviconUrlSync(bm.url);
-getFaviconUrl(bm.url).then(function (u) { favicon.src = u; });
+    setFaviconWithFallback(favicon, bm.url);
+getFaviconUrl(bm.url).then(function (u) { favicon.src = u; favicon.onerror = null; });
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
     return item;
@@ -927,8 +927,8 @@ function createBookmarkItem(bm, idx) {
     var favicon = document.createElement("img");
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
-    favicon.src = getFaviconUrlSync(bm.url);
-getFaviconUrl(bm.url).then(function (u) { favicon.src = u; });
+    setFaviconWithFallback(favicon, bm.url);
+getFaviconUrl(bm.url).then(function (u) { favicon.src = u; favicon.onerror = null; });
 
     var name = document.createElement("span");
     name.className = "bm-dl-name";
@@ -1109,7 +1109,7 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
         if (url && url.indexOf(updatedDomain) !== -1) {
             var img = items[i].querySelector(".bm-favicon");
             if (img) {
-                getFaviconUrl(url).then(function (u) { img.src = u; });
+                getFaviconUrl(url).then(function (u) { img.src = u; img.onerror = null; });
             }
         }
     }

@@ -59,7 +59,7 @@ function getFaviconUrl(url) {
   });
 }
 
-// Quick sync fallback — used when we just need something on screen fast
+// Quick sync fallback
 function getFaviconUrlSync(url) {
   try {
     var domain = new URL(url).hostname;
@@ -67,4 +67,26 @@ function getFaviconUrlSync(url) {
   } catch (e) {
     return "";
   }
+}
+
+// Set favicon with fallback chain: S2 → direct /favicon.ico → hide
+function setFaviconWithFallback(img, url) {
+  var s2 = getFaviconUrlSync(url);
+  img.src = s2;
+  img.dataset.favTried = "s2";
+
+  img.onerror = function () {
+    if (img.dataset.favTried === "s2") {
+      // Try direct favicon.ico
+      try {
+        var domain = new URL(url).hostname;
+        img.src = "https://" + domain + "/favicon.ico";
+        img.dataset.favTried = "direct";
+      } catch (e) {
+        img.style.display = "none";
+      }
+    } else {
+      img.style.display = "none";
+    }
+  };
 }
