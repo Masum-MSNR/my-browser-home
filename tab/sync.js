@@ -2,6 +2,11 @@ var FB_KEY = "AIzaSyD-qPlTDANCWj0pGvM5OhnGwJ15xvY233E";
 var FB_PROJECT = "my-browser-tab";
 var FB_BASE = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/databases/(default)/documents";
 var FB_IDTK = "https://identitytoolkit.googleapis.com/v1";
+var FB_WEB_CONFIG = {
+    apiKey: FB_KEY,
+    authDomain: FB_PROJECT + ".firebaseapp.com",
+    projectId: FB_PROJECT
+};
 
 var currentUser = null;
 var syncInitialized = false;
@@ -9,6 +14,12 @@ var initialSyncPromise = null;
 var syncDirty = {};
 var SYNC_DEBUG_LOGS = true;
 var lastSeenRemoteRevision = null;
+var realtimeAuth = null;
+var realtimeDb = null;
+var realtimeDocUnsubscribe = null;
+var realtimeAuthObserver = null;
+var realtimeListenerUid = null;
+var pendingRemoteDoc = null;
 
 function getDirtySyncKeys() {
     var keys = [];
@@ -52,6 +63,10 @@ async function waitForSyncReady() {
 
 function getSyncId() {
     return currentUser ? currentUser.uid : null;
+}
+
+function cloneSyncValue(value) {
+    return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
 async function fbToken() {
@@ -101,6 +116,266 @@ function sendToServiceWorker(msg, retries) {
     });
 }
 
+function ensureRealtimeClient() {
+    if (typeof firebase === "undefined" || !firebase || typeof firebase.initializeApp !== "function") return false;
+    if (!firebase.apps || !firebase.apps.length) {
+        firebase.initializeApp(FB_WEB_CONFIG);
+    }
+    realtimeAuth = firebase.auth();
+    realtimeDb = firebase.firestore();
+    return !!(realtimeAuth && realtimeDb);
+}
+
+function hasRealtimeListenerActive() {
+    return !!realtimeDocUnsubscribe;
+}
+
+function clearPendingRemoteDoc() {
+    pendingRemoteDoc = null;
+}
+
+function stopRealtimeDocumentListener() {
+    if (realtimeDocUnsubscribe) {
+        try { realtimeDocUnsubscribe(); } catch (e) {}
+    }
+    realtimeDocUnsubscribe = null;
+    realtimeListenerUid = null;
+    clearPendingRemoteDoc();
+}
+
+function queuePendingRemoteDoc(data, uid, revision, reason) {
+    pendingRemoteDoc = {
+        data: cloneSyncValue(data),
+        uid: uid,
+        revision: revision
+    };
+    logSyncEvent("listen", "queued", { uid: uid, revision: revision, reason: reason });
+}
+
+async function applyRemoteDocData(d, source) {
+    source = source || "pull";
+    if (!d) {
+        lastSeenRemoteRevision = null;
+        logSyncEvent(source, "empty", { docPath: docPath });
+        return false;
+    }
+
+    lastSeenRemoteRevision = getRemoteRevisionFromDoc(d);
+
+    var local = (await syncGet("shortcuts")) || [];
+    var localBookmarks = (await syncGet("bookmarks")) || [];
+    var localFolders = (await syncGet("bookmarkFolders")) || [];
+    var localMail = (await syncGet("mailShortcuts")) || [];
+    var localBg = await syncGet("customBg");
+    if (localBg === undefined) localBg = null;
+
+    var localDeleted = {};
+    try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
+    var remoteDeleted = d._deleted || {};
+    var remoteShortcuts = d.shortcuts || [];
+    var remoteBookmarks = d.bookmarks || [];
+    var remoteFolders = d.bookmarkFolders || [];
+    var remoteMail = d.mailShortcuts || [];
+    var remoteBg = Object.prototype.hasOwnProperty.call(d, "customBg") ? d.customBg : null;
+
+    var localForMerge = isSyncDirty("shortcuts") ? local : remoteShortcuts;
+    var localBookmarksForMerge = isSyncDirty("bookmarks") ? localBookmarks : remoteBookmarks;
+    var localFoldersForMerge = isSyncDirty("bookmarkFolders") ? localFolders : remoteFolders;
+    var localMailForMerge = isSyncDirty("mailShortcuts") ? localMail : remoteMail;
+    var deletedForMerge = (isSyncDirty("shortcuts") || isSyncDirty("bookmarks") || isSyncDirty("bookmarkFolders")) ? localDeleted : {};
+
+    logSyncEvent(source, "start", {
+        docPath: docPath,
+        local: summarizeSyncState(local, localBookmarks, localFolders, localMail, localBg),
+        remote: summarizeSyncState(remoteShortcuts, remoteBookmarks, remoteFolders, remoteMail, remoteBg)
+    });
+
+    var merged = mergeFlatItems(localForMerge, remoteShortcuts, deletedForMerge, remoteDeleted, isUrlSyncItem);
+    var mergedBookmarks = mergeScopedItems(localBookmarksForMerge, remoteBookmarks, deletedForMerge, remoteDeleted, isUrlSyncItem, function (item) {
+        return item && item.folderId;
+    });
+    var mergedFolders = mergeScopedItems(localFoldersForMerge, remoteFolders, deletedForMerge, remoteDeleted, isFolderSyncItem, function (item) {
+        return item && item.parentId;
+    });
+    var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, remoteMail) : remoteMail;
+    var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
+    var mergedBg = isSyncDirty("customBg") ? localBg : remoteBg;
+    var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, mergedMail, mergedBg);
+
+    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, bg: localBg, d: localDeleted });
+    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, bg: mergedBg, d: mergedDeleted });
+    if (localBefore === mergedAfter) {
+        logSyncEvent(source, "noop", { docPath: docPath, merged: mergedSummary, reason: "already-current" });
+        clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
+        setSyncIcon("synced");
+        return false;
+    }
+
+    await syncSet({
+        shortcuts: merged,
+        bookmarks: mergedBookmarks,
+        bookmarkFolders: mergedFolders,
+        mailShortcuts: mergedMail,
+        customBg: mergedBg
+    });
+    localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
+    logSyncEvent(source, "applied", { docPath: docPath, merged: mergedSummary, deleted: Object.keys(mergedDeleted).sort() });
+    clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
+    setSyncIcon("synced");
+    window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    return true;
+}
+
+async function flushPendingRemoteDoc() {
+    if (!pendingRemoteDoc || syncBusy || hasDirtySyncState()) return;
+    var queued = pendingRemoteDoc;
+    pendingRemoteDoc = null;
+    if (queued.revision !== null && queued.revision === lastSeenRemoteRevision) return;
+
+    syncBusy = true;
+    try {
+        await applyRemoteDocData(queued.data, "listen");
+    } catch (e) {
+        logSyncEvent("listen", "flush-error", {
+            uid: queued.uid,
+            message: e && e.message ? e.message : String(e)
+        });
+        setSyncIcon("error");
+    }
+    syncBusy = false;
+
+    if (pendingRemoteDoc && !hasDirtySyncState()) {
+        await flushPendingRemoteDoc();
+    }
+}
+
+async function handleRealtimeSnapshot(snapshot, uid) {
+    if (!currentUser || uid !== currentUser.uid) return;
+    if (!snapshot || !snapshot.exists) {
+        lastSeenRemoteRevision = null;
+        logSyncEvent("listen", "empty", { uid: uid, docPath: "users/" + uid + "/data/main" });
+        return;
+    }
+
+    var data = snapshot.data() || {};
+    var revision = getRemoteRevisionFromDoc(data);
+    var metadata = snapshot.metadata || {};
+
+    logSyncEvent("listen", "snapshot", {
+        uid: uid,
+        revision: revision,
+        fromCache: !!metadata.fromCache,
+        pendingWrites: !!metadata.hasPendingWrites
+    });
+
+    if (revision !== null && revision === lastSeenRemoteRevision) {
+        logSyncEvent("listen", "noop", { uid: uid, revision: revision, reason: "same-revision" });
+        return;
+    }
+    if (syncBusy || hasDirtySyncState()) {
+        queuePendingRemoteDoc(data, uid, revision, syncBusy ? "sync-busy" : "local-dirty");
+        return;
+    }
+
+    syncBusy = true;
+    try {
+        await applyRemoteDocData(data, "listen");
+    } catch (e) {
+        logSyncEvent("listen", "error", { uid: uid, message: e && e.message ? e.message : String(e) });
+        setSyncIcon("error");
+    }
+    syncBusy = false;
+    await flushPendingRemoteDoc();
+}
+
+function attachRealtimeDocumentListener(uid) {
+    if (!ensureRealtimeClient() || !currentUser || !uid || uid !== currentUser.uid) return false;
+    if (realtimeListenerUid === uid && realtimeDocUnsubscribe) return true;
+
+    stopRealtimeDocumentListener();
+    realtimeListenerUid = uid;
+    realtimeDocUnsubscribe = realtimeDb.doc("users/" + uid + "/data/main").onSnapshot(function (snapshot) {
+        handleRealtimeSnapshot(snapshot, uid).catch(function (error) {
+            logSyncEvent("listen", "error", { uid: uid, message: error && error.message ? error.message : String(error) });
+            setSyncIcon("error");
+        });
+    }, function (error) {
+        logSyncEvent("listen", "error", { uid: uid, message: error && error.message ? error.message : String(error) });
+        stopRealtimeDocumentListener();
+        setSyncIcon("error");
+    });
+    logSyncEvent("listen", "attached", { uid: uid });
+    return true;
+}
+
+function setupRealtimeSync() {
+    if (!ensureRealtimeClient()) return false;
+    if (realtimeAuthObserver) return true;
+
+    realtimeAuthObserver = realtimeAuth.onAuthStateChanged(function (user) {
+        if (!currentUser || !user) {
+            stopRealtimeDocumentListener();
+            return;
+        }
+        if (user.uid !== currentUser.uid) {
+            logSyncEvent("listen", "auth-mismatch", { expectedUid: currentUser.uid, actualUid: user.uid });
+            stopRealtimeDocumentListener();
+            return;
+        }
+        attachRealtimeDocumentListener(user.uid);
+    });
+
+    if (realtimeAuth.currentUser && currentUser && realtimeAuth.currentUser.uid === currentUser.uid) {
+        attachRealtimeDocumentListener(realtimeAuth.currentUser.uid);
+    }
+    return true;
+}
+
+async function ensureRealtimeAuthSignedIn(googleIdToken, reason) {
+    if (!currentUser || !googleIdToken || !ensureRealtimeClient()) return false;
+    setupRealtimeSync();
+
+    if (realtimeAuth.currentUser && realtimeAuth.currentUser.uid === currentUser.uid) {
+        return true;
+    }
+
+    var credential = firebase.auth.GoogleAuthProvider.credential(googleIdToken);
+    var result = await realtimeAuth.signInWithCredential(credential);
+    var user = result && result.user ? result.user : realtimeAuth.currentUser;
+
+    if (!user || user.uid !== currentUser.uid) {
+        try { await realtimeAuth.signOut(); } catch (e) {}
+        throw new Error("Realtime auth user mismatch");
+    }
+
+    logSyncEvent("listen", "auth-ready", { uid: user.uid, reason: reason || "sign-in" });
+    return true;
+}
+
+async function tryRestoreRealtimeAuth() {
+    if (!currentUser || !ensureRealtimeClient()) return false;
+    setupRealtimeSync();
+
+    if (realtimeAuth.currentUser && realtimeAuth.currentUser.uid === currentUser.uid) {
+        return true;
+    }
+
+    try {
+        var response = await sendToServiceWorker({ type: "GET_AUTH_TOKEN", interactive: false, prompt: "none" }, 1);
+        if (!response || response.error || !response.idToken) {
+            logSyncEvent("listen", "auth-restore-skip", {
+                reason: response && response.error ? response.error : "no-token"
+            });
+            return false;
+        }
+        await ensureRealtimeAuthSignedIn(response.idToken, "restore");
+        return true;
+    } catch (e) {
+        logSyncEvent("listen", "auth-restore-skip", { message: e && e.message ? e.message : String(e) });
+        return false;
+    }
+}
+
 async function signIn() {
     var response = await sendToServiceWorker({ type: "GET_AUTH_TOKEN" });
     if (!response || response.error) {
@@ -140,17 +415,27 @@ async function signIn() {
     syncId = currentUser.uid;
     docPath = "users/" + syncId + "/data/main";
     try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
+    try { await ensureRealtimeAuthSignedIn(googleIdToken, "sign-in"); } catch (e) {
+        logSyncEvent("listen", "auth-error", { message: e && e.message ? e.message : String(e) });
+    }
 
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
     return currentUser;
 }
 
 function signOut() {
+    stopRealtimeDocumentListener();
+    lastSeenRemoteRevision = null;
     currentUser = null;
     syncId = null;
     docPath = null;
     localStorage.removeItem("_fbu");
     chrome.runtime.sendMessage({ type: "CLEAR_AUTH_TOKEN" }, function () {});
+    if (realtimeAuth && realtimeAuth.currentUser && typeof realtimeAuth.signOut === "function") {
+        realtimeAuth.signOut().catch(function (e) {
+            logSyncEvent("listen", "signout-error", { message: e && e.message ? e.message : String(e) });
+        });
+    }
     if (typeof updateSyncUI === "function") updateSyncUI(null);
 }
 
@@ -565,6 +850,10 @@ async function initSync() {
     }
     syncInitialized = true;
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
+    if (currentUser) {
+        setupRealtimeSync();
+        tryRestoreRealtimeAuth();
+    }
     })();
     return initialSyncPromise;
 }
@@ -578,7 +867,8 @@ async function fbSaveAll() {
     var localBookmarks = (await syncGet("bookmarks")) || [];
     var localFolders = (await syncGet("bookmarkFolders")) || [];
     var localMail = (await syncGet("mailShortcuts")) || [];
-    var customBg = (await syncGet("customBg")) || null;
+    var customBg = await syncGet("customBg");
+    if (customBg === undefined) customBg = null;
     var localDeleted = {};
     try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
 
@@ -591,7 +881,7 @@ async function fbSaveAll() {
     var remoteBookmarks = doc && doc.bookmarks ? doc.bookmarks : [];
     var remoteFolders = doc && doc.bookmarkFolders ? doc.bookmarkFolders : [];
     var remoteMail = doc && doc.mailShortcuts ? doc.mailShortcuts : [];
-    var remoteBg = doc && doc.customBg ? doc.customBg : null;
+    var remoteBg = doc && Object.prototype.hasOwnProperty.call(doc, "customBg") ? doc.customBg : null;
 
     logSyncEvent("push", "start", {
         docPath: docPath,
@@ -622,9 +912,9 @@ async function fbSaveAll() {
         shortcuts: merged,
         bookmarks: mergedBookmarks,
         bookmarkFolders: mergedFolders,
-        mailShortcuts: mergedMail
+        mailShortcuts: mergedMail,
+        customBg: mergedBg
     });
-    if (mergedBg) await syncSet({ customBg: mergedBg });
     localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
 
     // Skip Firestore write if nothing changed since last write
@@ -663,11 +953,11 @@ async function fbSaveAll() {
         return;
     }
 
-    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, d: localDeleted });
-    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, d: mergedDeleted });
+    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, bg: customBg, d: localDeleted });
+    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, bg: mergedBg, d: mergedDeleted });
     var uiChanged = localBefore !== mergedAfter ||
-        JSON.stringify({ s: remote, b: remoteBookmarks, f: remoteFolders, m: remoteMail }) !==
-        JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail });
+        JSON.stringify({ s: remote, b: remoteBookmarks, f: remoteFolders, m: remoteMail, bg: remoteBg }) !==
+        JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, bg: customBg });
 
     if (uiChanged) {
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
@@ -679,67 +969,7 @@ async function fbLoadAll() {
     syncId = getSyncId();
     docPath = "users/" + syncId + "/data/main";
     try {
-        var d = await fbGet(docPath);
-        if (!d) {
-            lastSeenRemoteRevision = null;
-            logSyncEvent("pull", "empty", { docPath: docPath });
-            return;
-        }
-        lastSeenRemoteRevision = getRemoteRevisionFromDoc(d);
-
-        var local = (await syncGet("shortcuts")) || [];
-        var localBookmarks = (await syncGet("bookmarks")) || [];
-        var localFolders = (await syncGet("bookmarkFolders")) || [];
-        var localMail = (await syncGet("mailShortcuts")) || [];
-        var localDeleted = {};
-        try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
-        var remoteDeleted = d._deleted || {};
-
-        var localForMerge = isSyncDirty("shortcuts") ? local : (d.shortcuts || []);
-        var localBookmarksForMerge = isSyncDirty("bookmarks") ? localBookmarks : (d.bookmarks || []);
-        var localFoldersForMerge = isSyncDirty("bookmarkFolders") ? localFolders : (d.bookmarkFolders || []);
-        var localMailForMerge = isSyncDirty("mailShortcuts") ? localMail : (d.mailShortcuts || []);
-        var deletedForMerge = (isSyncDirty("shortcuts") || isSyncDirty("bookmarks") || isSyncDirty("bookmarkFolders")) ? localDeleted : {};
-
-        logSyncEvent("pull", "start", {
-            docPath: docPath,
-            local: summarizeSyncState(local, localBookmarks, localFolders, localMail, await syncGet("customBg")),
-            remote: summarizeSyncState(d.shortcuts || [], d.bookmarks || [], d.bookmarkFolders || [], d.mailShortcuts || [], d.customBg || null)
-        });
-
-        var merged = mergeFlatItems(localForMerge, d.shortcuts || [], deletedForMerge, remoteDeleted, isUrlSyncItem);
-        var mergedBookmarks = mergeScopedItems(localBookmarksForMerge, d.bookmarks || [], deletedForMerge, remoteDeleted, isUrlSyncItem, function (item) {
-            return item && item.folderId;
-        });
-        var mergedFolders = mergeScopedItems(localFoldersForMerge, d.bookmarkFolders || [], deletedForMerge, remoteDeleted, isFolderSyncItem, function (item) {
-            return item && item.parentId;
-        });
-        var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, d.mailShortcuts || []) : (d.mailShortcuts || []);
-        var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
-        var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, mergedMail, d.customBg || null);
-
-        // Only update UI if data actually changed
-        var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, d: localDeleted });
-        var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, d: mergedDeleted });
-        if (localBefore === mergedAfter) {
-            logSyncEvent("pull", "noop", { docPath: docPath, merged: mergedSummary, reason: "already-current" });
-            clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
-            setSyncIcon("synced");
-            return;
-        }
-
-        await syncSet({
-            shortcuts: merged,
-            bookmarks: mergedBookmarks,
-            bookmarkFolders: mergedFolders,
-            mailShortcuts: mergedMail
-        });
-        localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
-        if (d.customBg) await syncSet({ customBg: d.customBg });
-        logSyncEvent("pull", "applied", { docPath: docPath, merged: mergedSummary, deleted: Object.keys(mergedDeleted).sort() });
-        clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
-        setSyncIcon("synced");
-        window.dispatchEvent(new CustomEvent("syncdataloaded"));
+        await applyRemoteDocData(await fbGet(docPath), "pull");
     } catch (e) {
         logSyncEvent("pull", "error", { docPath: docPath, message: e && e.message ? e.message : String(e) });
         setSyncIcon("error");
@@ -798,11 +1028,16 @@ async function doAutoSave() {
         autoSyncRetries = 0;
     }
     syncBusy = false;
+    await flushPendingRemoteDoc();
 }
 
 // === Load remote changes on tab open ===
 async function pullFromRemote() {
     if (!getSyncId() || syncBusy) return;
+    if (hasRealtimeListenerActive()) {
+        logSyncEvent("pull", "skip", { reason: "listener-active" });
+        return;
+    }
     if (hasDirtySyncState()) {
         logSyncEvent("pull", "skip", { reason: "local-dirty" });
         return;

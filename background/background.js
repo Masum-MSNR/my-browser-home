@@ -16,6 +16,8 @@ var CLIENT_ID = "692720523871-cd6v5ba5ancrjj92iljqhhcr7vrbl8sn.apps.googleuserco
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     if (request.type === "GET_AUTH_TOKEN") {
+        var interactive = request.interactive !== false;
+        var prompt = request.prompt || (interactive ? "select_account" : "none");
         var redirectUri = "https://" + chrome.runtime.id + ".chromiumapp.org/";
         var nonce = Math.random().toString(36).substring(2, 15);
         var authUrl =
@@ -25,9 +27,9 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
             "&redirect_uri=" + encodeURIComponent(redirectUri) +
             "&scope=" + encodeURIComponent("openid email profile") +
             "&nonce=" + nonce +
-            "&prompt=select_account";
+            "&prompt=" + encodeURIComponent(prompt);
 
-        chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: true }, function (redirectUrl) {
+        chrome.identity.launchWebAuthFlow({ url: authUrl, interactive: interactive }, function (redirectUrl) {
             if (chrome.runtime.lastError || !redirectUrl) {
                 sendResponse({ error: chrome.runtime.lastError ? chrome.runtime.lastError.message : "No redirect" });
                 return;
