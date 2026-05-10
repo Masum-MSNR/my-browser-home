@@ -15,6 +15,9 @@ async function getBookmarks() {
     if (typeof waitForSyncReady === "function") await waitForSyncReady();
     return (await syncGet("bookmarks")) || [];
 }
+async function getBookmarksCached() {
+    return (await syncGet("bookmarks")) || [];
+}
 async function setBookmarks(val) {
     await syncSet({ bookmarks: val });
     if (typeof logSyncEvent === "function" && typeof summarizeSyncItems === "function") {
@@ -27,6 +30,9 @@ async function setBookmarks(val) {
 }
 async function getFolders() {
     if (typeof waitForSyncReady === "function") await waitForSyncReady();
+    return (await syncGet("bookmarkFolders")) || [];
+}
+async function getFoldersCached() {
     return (await syncGet("bookmarkFolders")) || [];
 }
 async function setFolders(val) {
@@ -315,10 +321,14 @@ function bmFaviconCb(bmUrl) {
     return function (realUrl) { persistBookmarkFavicon(bmUrl, realUrl); };
 }
 
-async function renderBookmarkBar() {
-    var bookmarks = await getBookmarks();
+async function renderBookmarkBar(options) {
+    options = options || {};
+    var readBookmarks = options.useCachedData ? getBookmarksCached : getBookmarks;
+    var readFolders = options.useCachedData ? getFoldersCached : getFolders;
+
+    var bookmarks = await readBookmarks();
     if (!Array.isArray(bookmarks)) bookmarks = [];
-    var folders = await getFolders();
+    var folders = await readFolders();
     if (!Array.isArray(folders)) folders = [];
 
     bookmarkBarItems.innerHTML = "";
@@ -1430,6 +1440,10 @@ window.addEventListener("syncdataloaded", async function () {
 });
 
 (async function initBookmarks() {
+    await renderBookmarkBar({ useCachedData: true });
+    refreshAllFaviconsFromCache();
+
+    if (typeof waitForSyncReady === "function") await waitForSyncReady();
     await repairBookmarkHierarchy();
     await renderBookmarkBar();
     refreshAllFaviconsFromCache();
