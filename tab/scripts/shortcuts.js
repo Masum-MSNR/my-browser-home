@@ -15,6 +15,11 @@ async function getShortcuts() {
 
 async function setShortcuts(val) {
   await syncSet({ shortcuts: val });
+  if (typeof logSyncEvent === "function" && typeof summarizeSyncItems === "function") {
+    logSyncEvent("local", "shortcuts-updated", {
+      shortcuts: summarizeSyncItems(val, null, function (item) { return !!(item && item.url); })
+    });
+  }
   if (typeof markSyncDirty === "function") markSyncDirty("shortcuts");
   if (typeof autoSync === "function") autoSync();
 }

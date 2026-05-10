@@ -7,10 +7,28 @@ var currentUser = null;
 var syncInitialized = false;
 var initialSyncPromise = null;
 var syncDirty = {};
+var SYNC_DEBUG_LOGS = true;
+
+function getDirtySyncKeys() {
+    var keys = [];
+    for (var key in syncDirty) {
+        if (syncDirty.hasOwnProperty(key)) keys.push(key);
+    }
+    keys.sort();
+    return keys;
+}
 
 function markSyncDirty(key) {
-    if (!syncInitialized && localStorage.getItem("_fbu")) return;
+    if (!syncInitialized && localStorage.getItem("_fbu")) {
+        if (key && typeof logSyncEvent === "function") {
+            logSyncEvent("local", "dirty-skipped", { key: key, reason: "initial-sync-pending" });
+        }
+        return;
+    }
     if (key) syncDirty[key] = Date.now();
+    if (key && typeof logSyncEvent === "function") {
+        logSyncEvent("local", "dirty-marked", { key: key });
+    }
 }
 
 function isSyncDirty(key) {
@@ -185,6 +203,101 @@ function compareSyncItems(a, b) {
 
 function getScopeKey(value) {
     return value === undefined || value === null ? "__root__" : String(value);
+}
+
+function getSyncLogLabel(item) {
+    if (!item) return "item";
+    if (item.name) return item.name;
+    if (item.email) return item.email;
+    if (item.url) return item.url;
+    if (item.id) return item.id;
+    return "item";
+}
+
+function clipSyncLogId(id) {
+    if (!id) return "";
+    var text = String(id);
+    return text.length > 10 ? text.slice(0, 10) : text;
+}
+
+function formatSyncLogEntry(item) {
+    return {
+        id: clipSyncLogId(item && item.id),
+        label: getSyncLogLabel(item),
+        position: item && typeof item.position === "number" ? item.position : 0,
+        updatedAt: item && item.updatedAt ? item.updatedAt : 0
+    };
+}
+
+function summarizeSyncItems(items, scopeKeyFn, isValidItem) {
+    if (!Array.isArray(items)) return scopeKeyFn ? {} : [];
+    if (typeof isValidItem !== "function") isValidItem = function (item) { return !!item; };
+
+    if (typeof scopeKeyFn !== "function") {
+        var flat = [];
+        for (var i = 0; i < items.length; i++) {
+            if (isValidItem(items[i])) flat.push(items[i]);
+        }
+        flat.sort(compareSyncItems);
+        var flatOut = [];
+        for (var j = 0; j < flat.length; j++) flatOut.push(formatSyncLogEntry(flat[j]));
+        return flatOut;
+    }
+
+    var groups = {};
+    var groupKeys = [];
+    for (var k = 0; k < items.length; k++) {
+        if (!isValidItem(items[k])) continue;
+        var groupKey = getScopeKey(scopeKeyFn(items[k]));
+        if (!groups[groupKey]) {
+            groups[groupKey] = [];
+            groupKeys.push(groupKey);
+        }
+        groups[groupKey].push(items[k]);
+    }
+
+    groupKeys.sort(function (a, b) {
+        if (a === b) return 0;
+        if (a === "__root__") return -1;
+        if (b === "__root__") return 1;
+        return a < b ? -1 : 1;
+    });
+
+    var out = {};
+    for (var g = 0; g < groupKeys.length; g++) {
+        var key = groupKeys[g];
+        groups[key].sort(compareSyncItems);
+        out[key] = [];
+        for (var m = 0; m < groups[key].length; m++) {
+            out[key].push(formatSyncLogEntry(groups[key][m]));
+        }
+    }
+    return out;
+}
+
+function summarizeSyncState(shortcuts, bookmarks, folders, mail, customBg) {
+    return {
+        shortcuts: summarizeSyncItems(shortcuts, null, isUrlSyncItem),
+        bookmarks: summarizeSyncItems(bookmarks, function (item) { return item && item.folderId; }, isUrlSyncItem),
+        bookmarkFolders: summarizeSyncItems(folders, function (item) { return item && item.parentId; }, isFolderSyncItem),
+        mailShortcuts: summarizeSyncItems(mail, null, function (item) { return !!(item && item.email); }),
+        customBg: customBg || null
+    };
+}
+
+function logSyncEvent(direction, phase, details) {
+    if (!SYNC_DEBUG_LOGS || typeof console === "undefined" || !console.log) return;
+    var payload = {
+        at: new Date().toISOString(),
+        uid: getSyncId(),
+        dirty: getDirtySyncKeys()
+    };
+    if (details) {
+        for (var key in details) {
+            if (details.hasOwnProperty(key)) payload[key] = details[key];
+        }
+    }
+    console.log("[sync][" + direction + "] " + phase + " " + JSON.stringify(payload));
 }
 
 function getMergedDeleteMap(localDeleted, remoteDeleted) {
@@ -424,6 +537,12 @@ async function fbSaveAll() {
     var remoteMail = doc && doc.mailShortcuts ? doc.mailShortcuts : [];
     var remoteBg = doc && doc.customBg ? doc.customBg : null;
 
+    logSyncEvent("push", "start", {
+        docPath: docPath,
+        local: summarizeSyncState(local, localBookmarks, localFolders, localMail, customBg),
+        remote: summarizeSyncState(remote, remoteBookmarks, remoteFolders, remoteMail, remoteBg)
+    });
+
     var localForMerge = isSyncDirty("shortcuts") ? local : remote;
     var localBookmarksForMerge = isSyncDirty("bookmarks") ? localBookmarks : remoteBookmarks;
     var localFoldersForMerge = isSyncDirty("bookmarkFolders") ? localFolders : remoteFolders;
@@ -440,6 +559,7 @@ async function fbSaveAll() {
     var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, remoteMail) : remoteMail;
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
     var mergedBg = isSyncDirty("customBg") ? customBg : remoteBg;
+    var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, mergedMail, mergedBg);
 
     await syncSet({
         shortcuts: merged,
@@ -453,6 +573,7 @@ async function fbSaveAll() {
     // Skip Firestore write if nothing changed since last write
     var writeHash = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, bg: mergedBg, d: mergedDeleted });
     if (writeHash === lastWrittenHash) {
+        logSyncEvent("push", "noop", { docPath: docPath, merged: mergedSummary, reason: "same-write-hash" });
         clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
         return;
@@ -468,9 +589,15 @@ async function fbSaveAll() {
             _deleted: mergedDeleted
         });
         lastWrittenHash = writeHash;
+        logSyncEvent("push", "success", { docPath: docPath, merged: mergedSummary, deleted: Object.keys(mergedDeleted).sort() });
         clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
     } catch (e) {
+        logSyncEvent("push", "error", {
+            docPath: docPath,
+            message: e && e.message ? e.message : String(e),
+            merged: mergedSummary
+        });
         setSyncIcon("error");
         return;
     }
@@ -492,7 +619,10 @@ async function fbLoadAll() {
     docPath = "users/" + syncId + "/data/main";
     try {
         var d = await fbGet(docPath);
-        if (!d) return;
+        if (!d) {
+            logSyncEvent("pull", "empty", { docPath: docPath });
+            return;
+        }
 
         var local = (await syncGet("shortcuts")) || [];
         var localBookmarks = (await syncGet("bookmarks")) || [];
@@ -508,6 +638,12 @@ async function fbLoadAll() {
         var localMailForMerge = isSyncDirty("mailShortcuts") ? localMail : (d.mailShortcuts || []);
         var deletedForMerge = (isSyncDirty("shortcuts") || isSyncDirty("bookmarks") || isSyncDirty("bookmarkFolders")) ? localDeleted : {};
 
+        logSyncEvent("pull", "start", {
+            docPath: docPath,
+            local: summarizeSyncState(local, localBookmarks, localFolders, localMail, await syncGet("customBg")),
+            remote: summarizeSyncState(d.shortcuts || [], d.bookmarks || [], d.bookmarkFolders || [], d.mailShortcuts || [], d.customBg || null)
+        });
+
         var merged = mergeFlatItems(localForMerge, d.shortcuts || [], deletedForMerge, remoteDeleted, isUrlSyncItem);
         var mergedBookmarks = mergeScopedItems(localBookmarksForMerge, d.bookmarks || [], deletedForMerge, remoteDeleted, isUrlSyncItem, function (item) {
             return item && item.folderId;
@@ -517,11 +653,13 @@ async function fbLoadAll() {
         });
         var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, d.mailShortcuts || []) : (d.mailShortcuts || []);
         var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
+        var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, mergedMail, d.customBg || null);
 
         // Only update UI if data actually changed
         var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, d: localDeleted });
         var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, d: mergedDeleted });
         if (localBefore === mergedAfter) {
+            logSyncEvent("pull", "noop", { docPath: docPath, merged: mergedSummary, reason: "already-current" });
             clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
             setSyncIcon("synced");
             return;
@@ -535,10 +673,12 @@ async function fbLoadAll() {
         });
         localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
         if (d.customBg) await syncSet({ customBg: d.customBg });
+        logSyncEvent("pull", "applied", { docPath: docPath, merged: mergedSummary, deleted: Object.keys(mergedDeleted).sort() });
         clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
     } catch (e) {
+        logSyncEvent("pull", "error", { docPath: docPath, message: e && e.message ? e.message : String(e) });
         setSyncIcon("error");
     }
 }

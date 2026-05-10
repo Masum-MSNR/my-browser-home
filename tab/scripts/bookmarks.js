@@ -17,6 +17,11 @@ async function getBookmarks() {
 }
 async function setBookmarks(val) {
     await syncSet({ bookmarks: val });
+    if (typeof logSyncEvent === "function" && typeof summarizeSyncItems === "function") {
+        logSyncEvent("local", "bookmarks-updated", {
+            bookmarks: summarizeSyncItems(val, function (item) { return item && item.folderId; }, function (item) { return !!(item && item.url); })
+        });
+    }
     if (typeof markSyncDirty === "function") markSyncDirty("bookmarks");
     if (typeof autoSync === "function") autoSync();
 }
@@ -26,6 +31,11 @@ async function getFolders() {
 }
 async function setFolders(val) {
     await syncSet({ bookmarkFolders: val });
+    if (typeof logSyncEvent === "function" && typeof summarizeSyncItems === "function") {
+        logSyncEvent("local", "bookmark-folders-updated", {
+            bookmarkFolders: summarizeSyncItems(val, function (item) { return item && item.parentId; }, function (item) { return !!(item && item.name); })
+        });
+    }
     if (typeof markSyncDirty === "function") markSyncDirty("bookmarkFolders");
     if (typeof autoSync === "function") autoSync();
 }
