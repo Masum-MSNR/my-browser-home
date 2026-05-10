@@ -72,7 +72,7 @@ async function renderShortcuts() {
       shortcutNameInput.value = shortcut.name;
       shortcutUrlInput.value = shortcut.url;
       shortcutTitle.textContent = "Edit Shortcut";
-      editingShortcut = index;
+      editingShortcut = shortcut.id;
       shortcutDialog.style.display = "flex";
       menu.style.display = "none";
       syncNameBtn.style.display = "inline";
@@ -81,16 +81,27 @@ async function renderShortcuts() {
     menu.querySelector(".delete-btn").onclick = async () => {
       var all = await getShortcuts();
       if (!Array.isArray(all)) all = [];
-      var deleted = all.splice(index, 1)[0];
+      var deleted = null;
+      for (var idx = 0; idx < all.length; idx++) {
+        if (all[idx] && all[idx].id === shortcut.id) {
+          deleted = all.splice(idx, 1)[0];
+          break;
+        }
+      }
       // Track tombstone for sync conflict resolution
       if (deleted && deleted.id) {
         var tombstones = {};
         try { tombstones = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
-        tombstones[deleted.id] = Date.now();
+        var now = Date.now();
+        tombstones[deleted.id] = now;
         localStorage.setItem("_deleted", JSON.stringify(tombstones));
+        for (var i = 0; i < all.length; i++) {
+          all[i].position = i;
+          all[i].updatedAt = now;
+        }
+      } else {
+        return;
       }
-      // Update positions
-      for (var i = 0; i < all.length; i++) { all[i].position = i; }
       await setShortcuts(all);
       renderShortcuts();
     };
@@ -259,9 +270,20 @@ shortcutForm.onsubmit = async (e) => {
   shortcuts = shortcuts.filter(function (s) { return s && s.url; });
 
   if (editingShortcut !== null) {
-    shortcuts[editingShortcut].name = name;
-    shortcuts[editingShortcut].url = url;
-    shortcuts[editingShortcut].updatedAt = Date.now();
+    var existingShortcut = null;
+    for (var index = 0; index < shortcuts.length; index++) {
+      if (shortcuts[index] && shortcuts[index].id === editingShortcut) {
+        existingShortcut = shortcuts[index];
+        break;
+      }
+    }
+    if (!existingShortcut) {
+      editingShortcut = null;
+      return;
+    }
+    existingShortcut.name = name;
+    existingShortcut.url = url;
+    existingShortcut.updatedAt = Date.now();
   } else {
     shortcuts.push({
       id: crypto.randomUUID(),

@@ -3,7 +3,7 @@ var bookmarkBtn = document.getElementById("bookmark-btn");
 var bookmarkDropdown = document.getElementById("bookmark-dropdown");
 var bookmarkDropdownContent = document.getElementById("bookmark-dropdown-content");
 
-var editingBookmarkIndex = null;
+var editingBookmarkId = null;
 var currentFolderId = null;
 var folderPath = [];
 var showAddForms = false;
@@ -24,6 +24,200 @@ async function getFolders() {
 async function setFolders(val) {
     await syncSet({ bookmarkFolders: val });
     if (typeof autoSync === "function") autoSync();
+}
+
+function getDeletedTombstones() {
+    try {
+        var tombstones = JSON.parse(localStorage.getItem("_deleted") || "{}");
+        return tombstones && typeof tombstones === "object" ? tombstones : {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function setDeletedTombstones(tombstones) {
+    localStorage.setItem("_deleted", JSON.stringify(tombstones || {}));
+}
+
+function addDeletedTombstones(ids, timestamp) {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+    var tombstones = getDeletedTombstones();
+    var now = timestamp || Date.now();
+    var changed = false;
+    for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!id) continue;
+        if (!tombstones[id] || tombstones[id] < now) {
+            tombstones[id] = now;
+            changed = true;
+        }
+    }
+    if (changed) setDeletedTombstones(tombstones);
+}
+
+function getBookmarkScopeKey(value) {
+    return value === undefined || value === null ? "__root__" : String(value);
+}
+
+function compareBookmarkSyncItems(a, b) {
+    var ap = typeof a.position === "number" ? a.position : 0;
+    var bp = typeof b.position === "number" ? b.position : 0;
+    if (ap !== bp) return ap - bp;
+    var au = a && a.updatedAt ? a.updatedAt : 0;
+    var bu = b && b.updatedAt ? b.updatedAt : 0;
+    if (au !== bu) return au - bu;
+    var aid = a && a.id ? String(a.id) : "";
+    var bid = b && b.id ? String(b.id) : "";
+    if (aid < bid) return -1;
+    if (aid > bid) return 1;
+    return 0;
+}
+
+function normalizeScopedItems(items, scopeField, scopeValues, updatedAt) {
+    if (!Array.isArray(items)) return items;
+
+    var scopeSet = null;
+    if (scopeValues !== undefined) {
+        var list = Array.isArray(scopeValues) ? scopeValues : [scopeValues];
+        scopeSet = {};
+        for (var i = 0; i < list.length; i++) {
+            scopeSet[getBookmarkScopeKey(list[i])] = true;
+        }
+    }
+
+    var groups = {};
+    for (var j = 0; j < items.length; j++) {
+        var item = items[j];
+        if (!item) continue;
+        var scopeKey = getBookmarkScopeKey(item[scopeField]);
+        if (scopeSet && !scopeSet[scopeKey]) continue;
+        if (!groups[scopeKey]) groups[scopeKey] = [];
+        groups[scopeKey].push(item);
+    }
+
+    for (var key in groups) {
+        if (!groups.hasOwnProperty(key)) continue;
+        groups[key].sort(compareBookmarkSyncItems);
+        for (var index = 0; index < groups[key].length; index++) {
+            groups[key][index].position = index;
+            if (updatedAt) groups[key][index].updatedAt = updatedAt;
+        }
+    }
+    return items;
+}
+
+function getNextScopedPosition(items, scopeField, scopeValue) {
+    var maxPos = -1;
+    var scopeKey = getBookmarkScopeKey(scopeValue);
+    for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (!item || getBookmarkScopeKey(item[scopeField]) !== scopeKey) continue;
+        var pos = typeof item.position === "number" ? item.position : -1;
+        if (pos > maxPos) maxPos = pos;
+    }
+    return maxPos + 1;
+}
+
+function collectFolderSubtreeIds(folderId, folders) {
+    var queue = [folderId];
+    var seen = {};
+    var ids = [];
+    while (queue.length > 0) {
+        var currentId = queue.shift();
+        if (!currentId || seen[currentId]) continue;
+        seen[currentId] = true;
+        ids.push(currentId);
+        for (var i = 0; i < folders.length; i++) {
+            if (folders[i] && folders[i].parentId === currentId) {
+                queue.push(folders[i].id);
+            }
+        }
+    }
+    return ids;
+}
+
+async function deleteBookmarkById(bookmarkId) {
+    var all = await getBookmarks();
+    if (!Array.isArray(all)) all = [];
+
+    var deleted = null;
+    for (var i = 0; i < all.length; i++) {
+        if (all[i] && all[i].id === bookmarkId) {
+            deleted = all.splice(i, 1)[0];
+            break;
+        }
+    }
+    if (!deleted) return false;
+
+    var now = Date.now();
+    addDeletedTombstones([deleted.id], now);
+    normalizeScopedItems(all, "folderId", deleted.folderId || null, now);
+    await setBookmarks(all);
+    return true;
+}
+
+async function deleteFolderById(folderId) {
+    var allFolders = await getFolders();
+    if (!Array.isArray(allFolders)) allFolders = [];
+
+    var targetFolder = null;
+    for (var i = 0; i < allFolders.length; i++) {
+        if (allFolders[i] && allFolders[i].id === folderId) {
+            targetFolder = allFolders[i];
+            break;
+        }
+    }
+    if (!targetFolder) return false;
+
+    var parentId = targetFolder.parentId || null;
+    var subtreeIds = collectFolderSubtreeIds(folderId, allFolders);
+    var subtreeSet = {};
+    for (var j = 0; j < subtreeIds.length; j++) subtreeSet[subtreeIds[j]] = true;
+
+    var remainingFolders = [];
+    for (var k = 0; k < allFolders.length; k++) {
+        if (!allFolders[k] || !subtreeSet[allFolders[k].id]) remainingFolders.push(allFolders[k]);
+    }
+
+    var allBookmarks = await getBookmarks();
+    if (!Array.isArray(allBookmarks)) allBookmarks = [];
+    var nextPosition = getNextScopedPosition(allBookmarks, "folderId", parentId);
+    var movedBookmarks = [];
+    for (var m = 0; m < allBookmarks.length; m++) {
+        if (allBookmarks[m] && allBookmarks[m].folderId && subtreeSet[allBookmarks[m].folderId]) {
+            movedBookmarks.push(allBookmarks[m]);
+        }
+    }
+
+    var now = Date.now();
+    movedBookmarks.sort(compareBookmarkSyncItems);
+    for (var n = 0; n < movedBookmarks.length; n++) {
+        movedBookmarks[n].folderId = parentId;
+        movedBookmarks[n].position = nextPosition++;
+        movedBookmarks[n].updatedAt = now;
+    }
+
+    normalizeScopedItems(remainingFolders, "parentId", parentId, now);
+    if (movedBookmarks.length > 0) {
+        normalizeScopedItems(allBookmarks, "folderId", parentId, now);
+    }
+
+    addDeletedTombstones(subtreeIds, now);
+
+    if (currentFolderId && subtreeSet[currentFolderId]) {
+        currentFolderId = parentId;
+    }
+    if (folderPath.length > 0) {
+        var nextPath = [];
+        for (var p = 0; p < folderPath.length; p++) {
+            if (!subtreeSet[folderPath[p].id]) nextPath.push(folderPath[p]);
+        }
+        folderPath = nextPath;
+    }
+
+    await setFolders(remainingFolders);
+    if (movedBookmarks.length > 0) await setBookmarks(allBookmarks);
+    return true;
 }
 
 async function repairBookmarkHierarchy() {
@@ -57,8 +251,14 @@ async function repairBookmarkHierarchy() {
         }
     }
 
-    if (changedFolders) await setFolders(folders);
-    if (changedBookmarks) await setBookmarks(bookmarks);
+    if (changedFolders) {
+        normalizeScopedItems(folders, "parentId", null, now);
+        await setFolders(folders);
+    }
+    if (changedBookmarks) {
+        normalizeScopedItems(bookmarks, "folderId", null, now);
+        await setBookmarks(bookmarks);
+    }
     return changedFolders || changedBookmarks;
 }
 
@@ -466,11 +666,7 @@ function showBookmarkContextMenu(e, bm) {
     document.body.appendChild(menu);
 
     menu.querySelector('[data-action="edit"]').onclick = async function () {
-        editingBookmarkIndex = -1;
-        var all = await getBookmarks();
-        for (var a = 0; a < all.length; a++) {
-            if (all[a].id === bm.id) { editingBookmarkIndex = a; break; }
-        }
+        editingBookmarkId = bm.id;
         showAddForms = true;
         removeContextMenu();
         renderBookmarkDropdown();
@@ -478,21 +674,10 @@ function showBookmarkContextMenu(e, bm) {
     };
 
     menu.querySelector('[data-action="delete"]').onclick = async function () {
-        var all = await getBookmarks();
-        var deleted = null;
-        for (var a = 0; a < all.length; a++) {
-            if (all[a].id === bm.id) { deleted = all.splice(a, 1)[0]; break; }
-        }
-        if (deleted && deleted.id) {
-            var d = {};
-            try { d = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
-            d[deleted.id] = Date.now();
-            localStorage.setItem("_deleted", JSON.stringify(d));
-        }
-        for (var j = 0; j < all.length; j++) all[j].position = j;
-        await setBookmarks(all);
+        await deleteBookmarkById(bm.id);
         removeContextMenu();
-        renderBookmarkBar();
+        await renderBookmarkBar();
+        if (bookmarkDropdown.classList.contains("open")) renderBookmarkDropdown();
     };
 
     setTimeout(function () {
@@ -712,7 +897,7 @@ function closeBookmarkDropdown() {
     currentFolderId = null;
     folderPath = [];
     showAddForms = false;
-    editingBookmarkIndex = null;
+    editingBookmarkId = null;
 }
 
 bookmarkBtn.addEventListener("click", function (e) {
@@ -808,7 +993,7 @@ async function renderBookmarkDropdown() {
 
     document.getElementById("bm-toggle-add-btn").onclick = function () {
         showAddForms = !showAddForms;
-        editingBookmarkIndex = null;
+        editingBookmarkId = null;
         renderBookmarkDropdown();
     };
 
@@ -861,7 +1046,7 @@ function wireAddForms() {
     var submitBtn = document.getElementById("bm-submit-btn");
 
     urlInput.addEventListener("input", function () {
-        if (editingBookmarkIndex !== null) return;
+        if (editingBookmarkId !== null) return;
         try {
             var domain = new URL(urlInput.value.trim()).hostname.replace(/^www\./, '');
             if (!nameInput.dataset.manualEdit) nameInput.value = domain.split('.')[0];
@@ -871,13 +1056,17 @@ function wireAddForms() {
         nameInput.dataset.manualEdit = "true";
     });
 
-    if (editingBookmarkIndex !== null) {
+    if (editingBookmarkId !== null) {
         getBookmarks().then(function (all) {
-            if (all[editingBookmarkIndex]) {
-                urlInput.value = all[editingBookmarkIndex].url;
-                nameInput.value = all[editingBookmarkIndex].name;
-                nameInput.dataset.manualEdit = "true";
-                submitBtn.textContent = "Save";
+            if (!Array.isArray(all)) return;
+            for (var i = 0; i < all.length; i++) {
+                if (all[i] && all[i].id === editingBookmarkId) {
+                    urlInput.value = all[i].url;
+                    nameInput.value = all[i].name;
+                    nameInput.dataset.manualEdit = "true";
+                    submitBtn.textContent = "Save";
+                    break;
+                }
             }
         });
     }
@@ -889,32 +1078,41 @@ function wireAddForms() {
         if (!name || !url) return;
         var all = await getBookmarks();
         if (!Array.isArray(all)) all = [];
-        if (editingBookmarkIndex !== null) {
-            all[editingBookmarkIndex].name = name;
-            all[editingBookmarkIndex].url = url;
-            all[editingBookmarkIndex].folderId = getCurrentParentId();
-            all[editingBookmarkIndex].updatedAt = Date.now();
-        } else {
-            var parentId = getCurrentParentId();
-            var maxPos = -1;
-            for (var s = 0; s < all.length; s++) {
-                if ((all[s].folderId || null) === parentId) {
-                    var p = all[s].position;
-                    if (typeof p === "number" && p > maxPos) maxPos = p;
+        var parentId = getCurrentParentId();
+        var now = Date.now();
+        if (editingBookmarkId !== null) {
+            var existing = null;
+            for (var i = 0; i < all.length; i++) {
+                if (all[i] && all[i].id === editingBookmarkId) {
+                    existing = all[i];
+                    break;
                 }
             }
+            if (!existing) {
+                editingBookmarkId = null;
+                return;
+            }
+            var oldParentId = existing.folderId || null;
+            existing.name = name;
+            existing.url = url;
+            existing.updatedAt = now;
+            if ((existing.folderId || null) !== parentId) {
+                existing.folderId = parentId;
+                existing.position = getNextScopedPosition(all, "folderId", parentId);
+                normalizeScopedItems(all, "folderId", [oldParentId, parentId], now);
+            }
+        } else {
             all.push({
                 id: crypto.randomUUID(), name: name, url: url,
                 folderId: parentId,
-                position: maxPos + 1,
-                updatedAt: Date.now()
+                position: getNextScopedPosition(all, "folderId", parentId),
+                updatedAt: now
             });
         }
-        for (var i = 0; i < all.length; i++) all[i].position = i;
         await setBookmarks(all);
-        renderBookmarkBar();
+        await renderBookmarkBar();
         showAddForms = false;
-        editingBookmarkIndex = null;
+        editingBookmarkId = null;
         renderBookmarkDropdown();
     };
 }
@@ -979,28 +1177,8 @@ function createFolderItem(folder, idx) {
     delBtn.innerHTML = '<i class="fas fa-trash"></i>';
     delBtn.onclick = async function (e) {
         e.stopPropagation();
-        var allFolders = await getFolders();
-        for (var j = 0; j < allFolders.length; j++) {
-            if (allFolders[j].id === folder.id || allFolders[j].parentId === folder.id) {
-                allFolders.splice(j, 1); j--;
-            }
-        }
-        var parentId = getCurrentParentId();
-        var siblings = [];
-        for (var k = 0; k < allFolders.length; k++) {
-            if ((allFolders[k].parentId || null) === parentId) siblings.push(allFolders[k]);
-        }
-        for (var s = 0; s < siblings.length; s++) siblings[s].position = s;
-        await setFolders(allFolders);
-        var allBm = await getBookmarks();
-        var changed = false;
-        for (var k = 0; k < allBm.length; k++) {
-            if (allBm[k].folderId === folder.id) {
-                allBm[k].folderId = folder.parentId || null; changed = true;
-            }
-        }
-        if (changed) await setBookmarks(allBm);
-        renderBookmarkBar();
+        await deleteFolderById(folder.id);
+        await renderBookmarkBar();
         renderBookmarkDropdown();
     };
     actions.appendChild(delBtn);
@@ -1041,12 +1219,7 @@ function createBookmarkItem(bm, idx) {
     editBtn.innerHTML = '<i class="fas fa-pen"></i>';
     editBtn.onclick = async function (e) {
         e.stopPropagation();
-        editingBookmarkIndex = -1;
-        var all = await getBookmarks();
-        for (var a = 0; a < all.length; a++) {
-            if (all[a].id === bm.id) { editingBookmarkIndex = a; break; }
-        }
-        if (editingBookmarkIndex === -1) return;
+        editingBookmarkId = bm.id;
         showAddForms = true;
         renderBookmarkDropdown();
     };
@@ -1057,20 +1230,8 @@ function createBookmarkItem(bm, idx) {
     delBtn.innerHTML = '<i class="fas fa-trash"></i>';
     delBtn.onclick = async function (e) {
         e.stopPropagation();
-        var all = await getBookmarks();
-        var deleted = null;
-        for (var a = 0; a < all.length; a++) {
-            if (all[a].id === bm.id) { deleted = all.splice(a, 1)[0]; break; }
-        }
-        if (deleted && deleted.id) {
-            var d = {};
-            try { d = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
-            d[deleted.id] = Date.now();
-            localStorage.setItem("_deleted", JSON.stringify(d));
-        }
-        for (var j = 0; j < all.length; j++) all[j].position = j;
-        await setBookmarks(all);
-        renderBookmarkBar();
+        await deleteBookmarkById(bm.id);
+        await renderBookmarkBar();
         renderBookmarkList();
     };
 

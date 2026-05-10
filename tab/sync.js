@@ -143,6 +143,132 @@ function isFolderSyncItem(item) {
     return !!(item && item.name);
 }
 
+function compareSyncItems(a, b) {
+    var ap = typeof a.position === "number" ? a.position : 0;
+    var bp = typeof b.position === "number" ? b.position : 0;
+    if (ap !== bp) return ap - bp;
+    var au = a && a.updatedAt ? a.updatedAt : 0;
+    var bu = b && b.updatedAt ? b.updatedAt : 0;
+    if (au !== bu) return au - bu;
+    var aid = a && a.id ? String(a.id) : "";
+    var bid = b && b.id ? String(b.id) : "";
+    if (aid < bid) return -1;
+    if (aid > bid) return 1;
+    return 0;
+}
+
+function getScopeKey(value) {
+    return value === undefined || value === null ? "__root__" : String(value);
+}
+
+function getMergedDeleteMap(localDeleted, remoteDeleted) {
+    var tombstones = {};
+    if (localDeleted) {
+        for (var k in localDeleted) {
+            if (localDeleted.hasOwnProperty(k)) tombstones[k] = localDeleted[k];
+        }
+    }
+    if (remoteDeleted) {
+        for (var key in remoteDeleted) {
+            if (remoteDeleted.hasOwnProperty(key)) {
+                if (!tombstones[key] || remoteDeleted[key] > tombstones[key]) {
+                    tombstones[key] = remoteDeleted[key];
+                }
+            }
+        }
+    }
+    return tombstones;
+}
+
+function mergeLatestItems(local, remote, tombstones, isValidItem) {
+    if (!Array.isArray(local)) local = [];
+    if (!Array.isArray(remote)) remote = [];
+    if (typeof isValidItem !== "function") isValidItem = isUrlSyncItem;
+
+    var byId = {};
+    for (var i = 0; i < local.length; i++) {
+        var localItem = ensureSyncItem(local[i], i);
+        if (!localItem || !isValidItem(localItem)) continue;
+        if (tombstones[localItem.id] !== undefined) continue;
+        byId[localItem.id] = localItem;
+    }
+
+    for (var j = 0; j < remote.length; j++) {
+        var remoteItem = ensureSyncItem(remote[j]);
+        if (!remoteItem || !isValidItem(remoteItem)) continue;
+        if (tombstones[remoteItem.id] !== undefined) continue;
+        var existing = byId[remoteItem.id];
+        if (!existing || (remoteItem.updatedAt || 0) > (existing.updatedAt || 0)) {
+            byId[remoteItem.id] = remoteItem;
+        }
+    }
+
+    var merged = [];
+    for (var id in byId) {
+        if (byId.hasOwnProperty(id)) merged.push(byId[id]);
+    }
+    return merged;
+}
+
+function normalizeFlatPositions(items, isValidItem) {
+    if (!Array.isArray(items)) items = [];
+    if (typeof isValidItem !== "function") isValidItem = isUrlSyncItem;
+    items.sort(compareSyncItems);
+    var clean = [];
+    for (var i = 0; i < items.length; i++) {
+        if (!isValidItem(items[i])) continue;
+        items[i].position = clean.length;
+        clean.push(items[i]);
+    }
+    return clean;
+}
+
+function normalizeScopedPositions(items, scopeKeyFn, isValidItem) {
+    if (!Array.isArray(items)) items = [];
+    if (typeof isValidItem !== "function") isValidItem = isUrlSyncItem;
+    if (typeof scopeKeyFn !== "function") scopeKeyFn = function () { return "__root__"; };
+
+    var groups = {};
+    var groupKeys = [];
+    for (var i = 0; i < items.length; i++) {
+        if (!isValidItem(items[i])) continue;
+        var scopeKey = getScopeKey(scopeKeyFn(items[i]));
+        if (!groups[scopeKey]) {
+            groups[scopeKey] = [];
+            groupKeys.push(scopeKey);
+        }
+        groups[scopeKey].push(items[i]);
+    }
+
+    groupKeys.sort(function (a, b) {
+        if (a === b) return 0;
+        if (a === "__root__") return -1;
+        if (b === "__root__") return 1;
+        return a < b ? -1 : 1;
+    });
+
+    var clean = [];
+    for (var g = 0; g < groupKeys.length; g++) {
+        var group = groups[groupKeys[g]];
+        group.sort(compareSyncItems);
+        for (var j = 0; j < group.length; j++) {
+            group[j].position = j;
+            clean.push(group[j]);
+        }
+    }
+    return clean;
+}
+
+function mergeFlatItems(local, remote, localDeleted, remoteDeleted, isValidItem) {
+    var tombstones = getMergedDeleteMap(localDeleted, remoteDeleted);
+    return normalizeFlatPositions(mergeLatestItems(local, remote, tombstones, isValidItem), isValidItem);
+}
+
+function mergeScopedItems(local, remote, localDeleted, remoteDeleted, isValidItem, scopeKeyFn) {
+    var tombstones = getMergedDeleteMap(localDeleted, remoteDeleted);
+    return normalizeScopedPositions(mergeLatestItems(local, remote, tombstones, isValidItem), scopeKeyFn, isValidItem);
+}
+
 // Merge mail accounts. Mail items are keyed by email. Local order wins
 // (so user reorder survives), with any new accounts from remote appended at
 // the end (preserving their relative remote order).
@@ -166,63 +292,6 @@ function mergeMailList(local, remote) {
         }
     }
     return out;
-}
-
-function mergeItems(local, remote, localDeleted, remoteDeleted, isValidItem) {
-    if (typeof isValidItem !== "function") isValidItem = isUrlSyncItem;
-    var tombstones = {};
-    // Merge tombstones: remote deletions also count locally
-    if (localDeleted) {
-        for (var k in localDeleted) {
-            if (localDeleted.hasOwnProperty(k)) tombstones[k] = localDeleted[k];
-        }
-    }
-    if (remoteDeleted) {
-        for (var k in remoteDeleted) {
-            if (remoteDeleted.hasOwnProperty(k)) {
-                if (!tombstones[k] || remoteDeleted[k] > tombstones[k]) {
-                    tombstones[k] = remoteDeleted[k];
-                }
-            }
-        }
-    }
-
-    // Index local by id
-    var byId = {};
-    for (var i = 0; i < local.length; i++) {
-        var s = ensureSyncItem(local[i], i);
-        if (!s || !isValidItem(s)) continue;
-        if (tombstones[s.id] !== undefined) continue; // Deleted — always skip
-        byId[s.id] = s;
-    }
-
-    // Merge remote: keep latest by updatedAt
-    for (var i = 0; i < remote.length; i++) {
-        var s = ensureSyncItem(remote[i]);
-        if (!s || !isValidItem(s)) continue;
-        if (tombstones[s.id] !== undefined) continue; // Deleted — always skip
-        var existing = byId[s.id];
-        if (!existing || (s.updatedAt || 0) > (existing.updatedAt || 0)) {
-            byId[s.id] = s;
-        }
-    }
-
-    // Convert to array sorted by position
-    var result = [];
-    for (var id in byId) {
-        if (byId.hasOwnProperty(id)) result.push(byId[id]);
-    }
-    result.sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
-
-    // Normalize positions and filter nulls
-    var clean = [];
-    for (var i = 0; i < result.length; i++) {
-        if (isValidItem(result[i])) {
-            result[i].position = i;
-            clean.push(result[i]);
-        }
-    }
-    return clean;
 }
 
 // Get merged tombstones (local + remote, keep latest, prune old)
@@ -324,9 +393,13 @@ async function fbSaveAll() {
     var remoteMail = doc && doc.mailShortcuts ? doc.mailShortcuts : [];
     var remoteBg = doc && doc.customBg ? doc.customBg : null;
 
-    var merged = mergeItems(local, remote, localDeleted, remoteDeleted, isUrlSyncItem);
-    var mergedBookmarks = mergeItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted, isUrlSyncItem);
-    var mergedFolders = mergeItems(localFolders, remoteFolders, localDeleted, remoteDeleted, isFolderSyncItem);
+    var merged = mergeFlatItems(local, remote, localDeleted, remoteDeleted, isUrlSyncItem);
+    var mergedBookmarks = mergeScopedItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted, isUrlSyncItem, function (item) {
+        return item && item.folderId;
+    });
+    var mergedFolders = mergeScopedItems(localFolders, remoteFolders, localDeleted, remoteDeleted, isFolderSyncItem, function (item) {
+        return item && item.parentId;
+    });
     var mergedMail = mergeMailList(localMail, remoteMail);
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
     var mergedBg = customBg || remoteBg;
@@ -390,9 +463,13 @@ async function fbLoadAll() {
         try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
         var remoteDeleted = d._deleted || {};
 
-        var merged = mergeItems(local, d.shortcuts || [], localDeleted, remoteDeleted, isUrlSyncItem);
-        var mergedBookmarks = mergeItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted, isUrlSyncItem);
-        var mergedFolders = mergeItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted, isFolderSyncItem);
+        var merged = mergeFlatItems(local, d.shortcuts || [], localDeleted, remoteDeleted, isUrlSyncItem);
+        var mergedBookmarks = mergeScopedItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted, isUrlSyncItem, function (item) {
+            return item && item.folderId;
+        });
+        var mergedFolders = mergeScopedItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted, isFolderSyncItem, function (item) {
+            return item && item.parentId;
+        });
         var mergedMail = mergeMailList(localMail, d.mailShortcuts || []);
         var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
 
