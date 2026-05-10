@@ -509,89 +509,15 @@ function getScopeKey(value) {
     return value === undefined || value === null ? "__root__" : String(value);
 }
 
-function getSyncLogLabel(item) {
-    if (!item) return "item";
-    if (item.name) return item.name;
-    if (item.email) return item.email;
-    if (item.url) return item.url;
-    if (item.id) return item.id;
-    return "item";
-}
+// logSyncEvent is intentionally a no-op since 1.3.0. The summary helpers
+// below short-circuit to null so callers don't pay the cost of building
+// payloads that nobody reads. Re-enable by replacing this stub with a
+// real logger (and restoring the summarizers).
+function summarizeSyncItems() { return null; }
 
-function clipSyncLogId(id) {
-    if (!id) return "";
-    var text = String(id);
-    return text.length > 10 ? text.slice(0, 10) : text;
-}
+function summarizeSyncState() { return null; }
 
-function formatSyncLogEntry(item) {
-    return {
-        id: clipSyncLogId(item && item.id),
-        label: getSyncLogLabel(item),
-        position: item && typeof item.position === "number" ? item.position : 0,
-        updatedAt: item && item.updatedAt ? item.updatedAt : 0
-    };
-}
-
-function summarizeSyncItems(items, scopeKeyFn, isValidItem) {
-    if (!Array.isArray(items)) return scopeKeyFn ? {} : [];
-    if (typeof isValidItem !== "function") isValidItem = function (item) { return !!item; };
-
-    if (typeof scopeKeyFn !== "function") {
-        var flat = [];
-        for (var i = 0; i < items.length; i++) {
-            if (isValidItem(items[i])) flat.push(items[i]);
-        }
-        flat.sort(compareSyncItems);
-        var flatOut = [];
-        for (var j = 0; j < flat.length; j++) flatOut.push(formatSyncLogEntry(flat[j]));
-        return flatOut;
-    }
-
-    var groups = {};
-    var groupKeys = [];
-    for (var k = 0; k < items.length; k++) {
-        if (!isValidItem(items[k])) continue;
-        var groupKey = getScopeKey(scopeKeyFn(items[k]));
-        if (!groups[groupKey]) {
-            groups[groupKey] = [];
-            groupKeys.push(groupKey);
-        }
-        groups[groupKey].push(items[k]);
-    }
-
-    groupKeys.sort(function (a, b) {
-        if (a === b) return 0;
-        if (a === "__root__") return -1;
-        if (b === "__root__") return 1;
-        return a < b ? -1 : 1;
-    });
-
-    var out = {};
-    for (var g = 0; g < groupKeys.length; g++) {
-        var key = groupKeys[g];
-        groups[key].sort(compareSyncItems);
-        out[key] = [];
-        for (var m = 0; m < groups[key].length; m++) {
-            out[key].push(formatSyncLogEntry(groups[key][m]));
-        }
-    }
-    return out;
-}
-
-function summarizeSyncState(shortcuts, bookmarks, folders, mail, customBg) {
-    return {
-        shortcuts: summarizeSyncItems(shortcuts, null, isUrlSyncItem),
-        bookmarks: summarizeSyncItems(bookmarks, function (item) { return item && item.folderId; }, isUrlSyncItem),
-        bookmarkFolders: summarizeSyncItems(folders, function (item) { return item && item.parentId; }, isFolderSyncItem),
-        mailShortcuts: summarizeSyncItems(mail, null, function (item) { return !!(item && item.email); }),
-        customBg: customBg || null
-    };
-}
-
-function logSyncEvent(direction, phase, details) {
-    return;
-}
+function logSyncEvent() { return; }
 
 function getMergedDeleteMap(localDeleted, remoteDeleted) {
     var tombstones = {};
@@ -729,6 +655,9 @@ function mergeMailList(local, remote) {
 // Get merged tombstones (local + remote, keep latest, prune old)
 var TOMBSTONE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+// NOTE: syncId/docPath are declared once above near ensureSyncItem; the
+// duplicate `var` declarations that used to sit here were removed in 1.3.0.
+
 function getMergedTombstones(localDeleted, remoteDeleted) {
     var merged = {};
     var cutoff = Date.now() - TOMBSTONE_TTL;
@@ -748,9 +677,6 @@ function getMergedTombstones(localDeleted, remoteDeleted) {
     }
     return merged;
 }
-
-var syncId = null;
-var docPath = null;
 
 async function fbGet(path, retry) {
     if (retry === undefined) retry = true;
@@ -1026,8 +952,10 @@ async function doAutoSave() {
     } catch (e) {
         autoSyncRetries++;
         if (autoSyncRetries <= 2) {
+            // Release the lock during back-off so the realtime listener can
+            // still apply remote updates that arrive while we wait.
+            syncBusy = false;
             setTimeout(function () {
-                syncBusy = false;
                 doAutoSave();
             }, autoSyncRetries * 3000);
             return;

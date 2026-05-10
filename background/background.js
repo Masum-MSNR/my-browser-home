@@ -2,7 +2,9 @@ importScripts('../tab/utils.js');
 
 function storeTabFaviconCache(tab) {
     if (!tab || !tab.url || !tab.favIconUrl) return;
-    var rootDomain = getFullDomain(tab.url);
+    // Only cache for real http(s) pages — skip chrome://, file://, etc.
+    if (!/^https?:\/\//i.test(tab.url)) return;
+    var rootDomain = (typeof getRootDomain === "function" && getRootDomain(tab.url)) || getFullDomain(tab.url);
     if (!rootDomain) return;
 
     chrome.storage.local.get(rootDomain, function (result) {

@@ -912,7 +912,6 @@ async function reorderRootBookmarks(fromIdx, toIdx, mode) {
         }
     }
     await setBookmarks(all);
-    renderBookmarkBar();
 }
 
 // === Dropdown ===
@@ -1365,7 +1364,6 @@ async function reorderLevelBookmarks(fromIdx, toIdx) {
         }
     }
     await setBookmarks(all);
-    renderBookmarkBar();
 }
 
 // === Mouse wheel → horizontal scroll on bar ===
