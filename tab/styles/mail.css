@@ -111,8 +111,34 @@
     padding: 0.85rem;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.03);
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.2s ease, opacity 0.2s ease;
+    cursor: grab;
+    position: relative;
 }
+
+.mail-account-card:active {
+    cursor: grabbing;
+}
+
+.mail-account-card.dragging {
+    opacity: 0.45;
+    transform: scale(0.97);
+}
+
+.mail-account-card.drag-over-top::before,
+.mail-account-card.drag-over-bottom::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    height: 2px;
+    background: #3b82f6;
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+.mail-account-card.drag-over-top::before { top: -2px; }
+.mail-account-card.drag-over-bottom::after { bottom: -2px; }
 
 .mail-account-card:hover {
     background: rgba(255, 255, 255, 0.06);
@@ -125,6 +151,8 @@
     object-fit: cover;
     flex-shrink: 0;
     border: 2px solid rgba(255, 255, 255, 0.12);
+    -webkit-user-drag: none;
+    user-select: none;
 }
 
 .account-info {

@@ -34,12 +34,13 @@ async function getMailShortcuts() {
 
 async function setMailShortcuts(val) {
     await syncSet({ mailShortcuts: val });
+    if (typeof autoSync === "function") autoSync();
 }
 
 async function renderMailList() {
     const mails = await getMailShortcuts();
     mailDropdownList.innerHTML = "";
-    mails.forEach(addMailItem);
+    mails.forEach(function (m, idx) { addMailItem(m, idx); });
 }
 
 function createServiceLink(href, title, iconUrl) {
@@ -57,9 +58,12 @@ function createServiceLink(href, title, iconUrl) {
     return link;
 }
 
-function addMailItem({ email, name, image }) {
+function addMailItem({ email, name, image }, idx) {
     const li = document.createElement("li");
     li.className = "mail-account-card";
+    li.draggable = true;
+    li.dataset.email = email;
+    li.dataset.idx = idx;
 
     const avatar = document.createElement("img");
     avatar.className = "account-avatar";
@@ -106,7 +110,63 @@ function addMailItem({ email, name, image }) {
     li.appendChild(avatar);
     li.appendChild(info);
     li.appendChild(services);
+    wireMailDragReorder(li, idx);
     mailDropdownList.appendChild(li);
+}
+
+// === Drag-reorder for mail list ===
+function wireMailDragReorder(li, idx) {
+    li.addEventListener("dragstart", function (e) {
+        // Don't initiate drag from interactive children (links, buttons)
+        if (e.target && e.target.closest && e.target.closest("a,button")) {
+            e.preventDefault();
+            return;
+        }
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", "mail:" + idx);
+        li.classList.add("dragging");
+    });
+    li.addEventListener("dragend", function () {
+        li.classList.remove("dragging");
+        var all = mailDropdownList.querySelectorAll(".mail-account-card");
+        for (var i = 0; i < all.length; i++) {
+            all[i].classList.remove("drag-over-top", "drag-over-bottom");
+        }
+    });
+    li.addEventListener("dragover", function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (li.classList.contains("dragging")) return;
+        var rect = li.getBoundingClientRect();
+        var midY = rect.top + rect.height / 2;
+        li.classList.toggle("drag-over-top", e.clientY < midY);
+        li.classList.toggle("drag-over-bottom", e.clientY >= midY);
+    });
+    li.addEventListener("dragleave", function () {
+        li.classList.remove("drag-over-top", "drag-over-bottom");
+    });
+    li.addEventListener("drop", async function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var data = e.dataTransfer.getData("text/plain") || "";
+        if (data.indexOf("mail:") !== 0) return;
+        var fromIdx = parseInt(data.split(":")[1], 10);
+        if (isNaN(fromIdx) || fromIdx === idx) {
+            li.classList.remove("drag-over-top", "drag-over-bottom");
+            return;
+        }
+        var rect = li.getBoundingClientRect();
+        var dropAfter = e.clientY >= rect.top + rect.height / 2;
+        var toIdx = dropAfter ? idx + 1 : idx;
+        if (fromIdx < toIdx) toIdx--;
+
+        var mails = await getMailShortcuts();
+        if (!Array.isArray(mails) || fromIdx < 0 || fromIdx >= mails.length) return;
+        var moved = mails.splice(fromIdx, 1)[0];
+        mails.splice(toIdx, 0, moved);
+        await setMailShortcuts(mails);
+        await renderMailList();
+    });
 }
 
 async function scanAccountChooserPageAndSave() {
@@ -134,7 +194,26 @@ async function scanAccountChooserPageAndSave() {
         }).filter(Boolean);
 
         if (result.length > 0) {
-            await setMailShortcuts(result);
+            // Preserve user-reordered list: existing accounts keep their order,
+            // newly discovered ones append at the end.
+            var existing = await getMailShortcuts();
+            if (!Array.isArray(existing)) existing = [];
+            var byEmail = {};
+            for (var ri = 0; ri < result.length; ri++) byEmail[result[ri].email] = result[ri];
+            var merged = [];
+            var seen = {};
+            for (var ei = 0; ei < existing.length; ei++) {
+                var em = existing[ei] && existing[ei].email;
+                if (em && byEmail[em]) {
+                    // Refresh name/image from latest scan but keep position
+                    merged.push(byEmail[em]);
+                    seen[em] = true;
+                }
+            }
+            for (var ri2 = 0; ri2 < result.length; ri2++) {
+                if (!seen[result[ri2].email]) merged.push(result[ri2]);
+            }
+            await setMailShortcuts(merged);
             await renderMailList();
         } else {
             console.log("No Gmail accounts found.");

@@ -110,6 +110,7 @@ async function applyTheme(url) {
   }
 
   await syncSet({ customBg: url });
+  if (typeof autoSync === "function") autoSync();
 }
 
 function renderThemeOptions() {

@@ -46,6 +46,25 @@ async function getAllBookmarksInFolder(folderId) {
 }
 
 // === Bar rendering ===
+// Persist a resolved favicon URL onto a bookmark, so it syncs across devices
+// and survives chrome.storage.local cache loss.
+async function persistBookmarkFavicon(bmUrl, realUrl) {
+    var all = await getBookmarks();
+    if (!Array.isArray(all)) return;
+    var changed = false;
+    for (var i = 0; i < all.length; i++) {
+        if (all[i] && all[i].url === bmUrl && all[i].favicon !== realUrl) {
+            all[i].favicon = realUrl;
+            all[i].updatedAt = Date.now();
+            changed = true;
+        }
+    }
+    if (changed) await setBookmarks(all);
+}
+function bmFaviconCb(bmUrl) {
+    return function (realUrl) { persistBookmarkFavicon(bmUrl, realUrl); };
+}
+
 async function renderBookmarkBar() {
     var bookmarks = await getBookmarks();
     if (!Array.isArray(bookmarks)) bookmarks = [];
@@ -90,6 +109,16 @@ async function renderBookmarkBar() {
     for (var b = 0; b < rootBookmarks.length; b++) {
         createBarBookmarkItem(rootBookmarks[b], b);
     }
+
+    // Upgrade bar favicons from cache (and persist for sync)
+    setTimeout(function () {
+        var imgs = bookmarkBarItems.querySelectorAll(".bm-favicon");
+        for (var i = 0; i < imgs.length; i++) {
+            var item = imgs[i].closest(".bm-bar-bookmark");
+            var url = item ? item.dataset.bmUrl : null;
+            if (url) refreshFaviconFromCache(imgs[i], url, bmFaviconCb(url));
+        }
+    }, 100);
 }
 
 function createBarFolderItem(folder, idx) {
@@ -148,7 +177,7 @@ function createBarBookmarkItem(bm, idx) {
     favicon.className = "bm-favicon";
     favicon.draggable = false;
     favicon.alt = "";
-    setFaviconWithFallback(favicon, bm.url);
+    setFaviconWithFallback(favicon, bm.url, bm.favicon);
 
     var name = document.createElement("span");
     name.className = "bm-title";
@@ -289,7 +318,7 @@ function createSubmenuBookmarkItem(bm) {
     favicon.alt = "";
     favicon.style.width = "14px";
     favicon.style.height = "14px";
-    setFaviconWithFallback(favicon, bm.url);
+    setFaviconWithFallback(favicon, bm.url, bm.favicon);
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
     return item;
@@ -590,14 +619,17 @@ async function reorderRootFolders(fromIdx, toIdx, mode) {
         var tmp = rootFolders[fromIdx].position;
         rootFolders[fromIdx].position = rootFolders[toIdx].position;
         rootFolders[toIdx].position = tmp;
-        rootFolders[fromIdx].updatedAt = Date.now();
-        rootFolders[toIdx].updatedAt = Date.now();
+        var nowF = Date.now();
+        for (var bx = 0; bx < rootFolders.length; bx++) rootFolders[bx].updatedAt = nowF;
     } else {
         var moved = rootFolders.splice(fromIdx, 1)[0];
         var insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
         rootFolders.splice(insertAt, 0, moved);
         for (var j = 0; j < rootFolders.length; j++) {
             rootFolders[j].position = j;
+            rootFolders[j].updatedAt = Date.now();
+        }
+    }
             rootFolders[j].updatedAt = Date.now();
         }
     }
@@ -621,8 +653,8 @@ async function reorderRootBookmarks(fromIdx, toIdx, mode) {
         var tmp = rootBookmarks[fromIdx].position;
         rootBookmarks[fromIdx].position = rootBookmarks[toIdx].position;
         rootBookmarks[toIdx].position = tmp;
-        rootBookmarks[fromIdx].updatedAt = Date.now();
-        rootBookmarks[toIdx].updatedAt = Date.now();
+        var nowB = Date.now();
+        for (var bx = 0; bx < rootBookmarks.length; bx++) rootBookmarks[bx].updatedAt = nowB;
     } else {
         var moved = rootBookmarks.splice(fromIdx, 1)[0];
         var insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
@@ -753,7 +785,7 @@ async function renderBookmarkDropdown() {
     setTimeout(function () {
         var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
         for (var i = 0; i < dlItems.length; i++) {
-            if (dlItems[i].dataset.bmUrl) refreshFaviconFromCache(dlItems[i], dlItems[i].dataset.bmUrl);
+            if (dlItems[i].dataset.bmUrl) refreshFaviconFromCache(dlItems[i], dlItems[i].dataset.bmUrl, bmFaviconCb(dlItems[i].dataset.bmUrl));
         }
     }, 100);
 }
@@ -955,7 +987,7 @@ function createBookmarkItem(bm, idx) {
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
     favicon.dataset.bmUrl = bm.url;
-    setFaviconWithFallback(favicon, bm.url);
+    setFaviconWithFallback(favicon, bm.url, bm.favicon);
 
     var name = document.createElement("span");
     name.className = "bm-dl-name";
@@ -1086,8 +1118,8 @@ async function reorderLevelFolders(fromIdx, toIdx) {
     var tmp = siblings[fromIdx].position;
     siblings[fromIdx].position = siblings[toIdx].position;
     siblings[toIdx].position = tmp;
-    siblings[fromIdx].updatedAt = Date.now();
-    siblings[toIdx].updatedAt = Date.now();
+    var nowF = Date.now();
+    for (var sx = 0; sx < siblings.length; sx++) siblings[sx].updatedAt = nowF;
     for (var k = 0; k < siblings.length; k++) {
         for (var m = 0; m < allFolders.length; m++) {
             if (allFolders[m].id === siblings[k].id) allFolders[m].position = siblings[k].position;
@@ -1107,8 +1139,8 @@ async function reorderLevelBookmarks(fromIdx, toIdx) {
     var tmp = siblings[fromIdx].position;
     siblings[fromIdx].position = siblings[toIdx].position;
     siblings[toIdx].position = tmp;
-    siblings[fromIdx].updatedAt = Date.now();
-    siblings[toIdx].updatedAt = Date.now();
+    var nowB = Date.now();
+    for (var sx = 0; sx < siblings.length; sx++) siblings[sx].updatedAt = nowB;
     for (var k = 0; k < siblings.length; k++) {
         for (var m = 0; m < all.length; m++) {
             if (all[m].id === siblings[k].id) all[m].position = siblings[k].position;
@@ -1133,18 +1165,18 @@ function refreshAllFaviconsFromCache() {
     for (var i = 0; i < barItems.length; i++) {
         var url = barItems[i].dataset.bmUrl;
         var img = barItems[i].querySelector(".bm-favicon");
-        if (url && img) refreshFaviconFromCache(img, url);
+        if (url && img) refreshFaviconFromCache(img, url, bmFaviconCb(url));
     }
     // Dialog dropdown (if open)
     var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
     for (var j = 0; j < dlItems.length; j++) {
-        if (dlItems[j].dataset.bmUrl) refreshFaviconFromCache(dlItems[j], dlItems[j].dataset.bmUrl);
+        if (dlItems[j].dataset.bmUrl) refreshFaviconFromCache(dlItems[j], dlItems[j].dataset.bmUrl, bmFaviconCb(dlItems[j].dataset.bmUrl));
     }
     // Submenu (if open)
     var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark img");
     for (var k = 0; k < subItems.length; k++) {
         var a = subItems[k].parentNode;
-        if (a && a.href) refreshFaviconFromCache(subItems[k], a.href);
+        if (a && a.href) refreshFaviconFromCache(subItems[k], a.href, bmFaviconCb(a.href));
     }
 }
 
@@ -1163,20 +1195,21 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
         var url = barItems[i].dataset.bmUrl;
         if (url && url.indexOf(updatedDomain) !== -1) {
             var img = barItems[i].querySelector(".bm-favicon");
-            if (img) refreshFaviconFromCache(img, url);
+            if (img) refreshFaviconFromCache(img, url, bmFaviconCb(url));
         }
     }
     // Refresh in dialog dropdown (if open)
     var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bookmark-dropdown-item");
     for (var j = 0; j < dlItems.length; j++) {
         var dlImg = dlItems[j].querySelector(".bm-dl-favicon");
-        if (dlImg) refreshFaviconFromCache(dlImg, dlImg.dataset.bmUrl || "");
+        var dlUrl = dlImg ? (dlImg.dataset.bmUrl || "") : "";
+        if (dlImg && dlUrl) refreshFaviconFromCache(dlImg, dlUrl, bmFaviconCb(dlUrl));
     }
     // Refresh in submenu (if open)
     var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark");
     for (var k = 0; k < subItems.length; k++) {
         var subImg = subItems[k].querySelector("img");
-        if (subImg) refreshFaviconFromCache(subImg, subItems[k].href);
+        if (subImg) refreshFaviconFromCache(subImg, subItems[k].href, bmFaviconCb(subItems[k].href));
     }
 });
 

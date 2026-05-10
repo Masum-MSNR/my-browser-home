@@ -135,8 +135,32 @@ function ensureShortcut(s, pos) {
     return s;
 }
 
+// Merge mail accounts. Mail items are keyed by email. Local order wins
+// (so user reorder survives), with any new accounts from remote appended at
+// the end (preserving their relative remote order).
+function mergeMailList(local, remote) {
+    if (!Array.isArray(local)) local = [];
+    if (!Array.isArray(remote)) remote = [];
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < local.length; i++) {
+        var li = local[i];
+        if (li && li.email && !seen[li.email]) {
+            seen[li.email] = true;
+            out.push(li);
+        }
+    }
+    for (var j = 0; j < remote.length; j++) {
+        var rj = remote[j];
+        if (rj && rj.email && !seen[rj.email]) {
+            seen[rj.email] = true;
+            out.push(rj);
+        }
+    }
+    return out;
+}
+
 function mergeItems(local, remote, localDeleted, remoteDeleted) {
-    var byId = {};
     var tombstones = {};
     // Merge tombstones: remote deletions also count locally
     if (localDeleted) {
@@ -155,6 +179,7 @@ function mergeItems(local, remote, localDeleted, remoteDeleted) {
     }
 
     // Index local by id
+    var byId = {};
     for (var i = 0; i < local.length; i++) {
         var s = ensureShortcut(local[i], i);
         if (!s) continue;
@@ -274,6 +299,7 @@ async function fbSaveAll() {
     var local = (await syncGet("shortcuts")) || [];
     var localBookmarks = (await syncGet("bookmarks")) || [];
     var localFolders = (await syncGet("bookmarkFolders")) || [];
+    var localMail = (await syncGet("mailShortcuts")) || [];
     var customBg = (await syncGet("customBg")) || null;
     var localDeleted = {};
     try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
@@ -286,17 +312,27 @@ async function fbSaveAll() {
     var remote = doc && doc.shortcuts ? doc.shortcuts : [];
     var remoteBookmarks = doc && doc.bookmarks ? doc.bookmarks : [];
     var remoteFolders = doc && doc.bookmarkFolders ? doc.bookmarkFolders : [];
+    var remoteMail = doc && doc.mailShortcuts ? doc.mailShortcuts : [];
+    var remoteBg = doc && doc.customBg ? doc.customBg : null;
 
     var merged = mergeItems(local, remote, localDeleted, remoteDeleted);
     var mergedBookmarks = mergeItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted);
     var mergedFolders = mergeItems(localFolders, remoteFolders, localDeleted, remoteDeleted);
+    var mergedMail = mergeMailList(localMail, remoteMail);
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
+    var mergedBg = customBg || remoteBg;
 
-    await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
+    await syncSet({
+        shortcuts: merged,
+        bookmarks: mergedBookmarks,
+        bookmarkFolders: mergedFolders,
+        mailShortcuts: mergedMail
+    });
+    if (mergedBg) await syncSet({ customBg: mergedBg });
     localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
 
     // Skip Firestore write if nothing changed since last write
-    var writeHash = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, d: mergedDeleted });
+    var writeHash = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, bg: mergedBg, d: mergedDeleted });
     if (writeHash === lastWrittenHash) {
         setSyncIcon("synced");
         return;
@@ -307,7 +343,8 @@ async function fbSaveAll() {
             shortcuts: merged,
             bookmarks: mergedBookmarks,
             bookmarkFolders: mergedFolders,
-            customBg: customBg,
+            mailShortcuts: mergedMail,
+            customBg: mergedBg,
             _deleted: mergedDeleted
         });
         lastWrittenHash = writeHash;
@@ -317,11 +354,11 @@ async function fbSaveAll() {
         return;
     }
 
-    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, d: localDeleted });
-    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, d: mergedDeleted });
+    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, d: localDeleted });
+    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, d: mergedDeleted });
     var uiChanged = localBefore !== mergedAfter ||
-        JSON.stringify({ s: remote, b: remoteBookmarks, f: remoteFolders }) !==
-        JSON.stringify({ s: local, b: localBookmarks, f: localFolders });
+        JSON.stringify({ s: remote, b: remoteBookmarks, f: remoteFolders, m: remoteMail }) !==
+        JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail });
 
     if (uiChanged) {
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
@@ -339,6 +376,7 @@ async function fbLoadAll() {
         var local = (await syncGet("shortcuts")) || [];
         var localBookmarks = (await syncGet("bookmarks")) || [];
         var localFolders = (await syncGet("bookmarkFolders")) || [];
+        var localMail = (await syncGet("mailShortcuts")) || [];
         var localDeleted = {};
         try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
         var remoteDeleted = d._deleted || {};
@@ -346,14 +384,20 @@ async function fbLoadAll() {
         var merged = mergeItems(local, d.shortcuts || [], localDeleted, remoteDeleted);
         var mergedBookmarks = mergeItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted);
         var mergedFolders = mergeItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted);
+        var mergedMail = mergeMailList(localMail, d.mailShortcuts || []);
         var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
 
         // Only update UI if data actually changed
-        var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, d: localDeleted });
-        var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, d: mergedDeleted });
+        var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, d: localDeleted });
+        var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, d: mergedDeleted });
         if (localBefore === mergedAfter) return;
 
-        await syncSet({ shortcuts: merged, bookmarks: mergedBookmarks, bookmarkFolders: mergedFolders });
+        await syncSet({
+            shortcuts: merged,
+            bookmarks: mergedBookmarks,
+            bookmarkFolders: mergedFolders,
+            mailShortcuts: mergedMail
+        });
         localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
         if (d.customBg) await syncSet({ customBg: d.customBg });
         setSyncIcon("synced");
@@ -422,11 +466,16 @@ async function pullFromRemote() {
     syncBusy = false;
 }
 
-// Pull remote changes when tab becomes visible (only if signed in)
+// Throttle visibility-driven pulls so refocusing the tab doesn't spam
+// Firestore reads. Initial pull happens via initSync() on page load.
+var VISIBILITY_PULL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+var lastVisibilityPull = 0;
 document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && getSyncId()) {
-        pullFromRemote();
-    }
+    if (document.visibilityState !== "visible" || !getSyncId()) return;
+    var now = Date.now();
+    if (now - lastVisibilityPull < VISIBILITY_PULL_INTERVAL) return;
+    lastVisibilityPull = now;
+    pullFromRemote();
 });
 
 // === Icon & user ===

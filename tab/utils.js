@@ -59,34 +59,53 @@ var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
   '<path d="M2 12h20"/><path d="M12 2v20"/></svg>'
 );
 
-// Set favicon: S2 first, then try to upgrade to real favicon from cache
-function setFaviconWithFallback(img, url) {
-  img.src = getFaviconUrlSync(url);
+// Set favicon: prefer stored favicon (from item.favicon), fall back to S2.
+// `storedFavicon` is the favicon URL saved in the item data (synced across
+// devices). If absent, use Google's S2 service. If both fail, use a built-in
+// globe SVG.
+function setFaviconWithFallback(img, url, storedFavicon) {
+  var s2 = getFaviconUrlSync(url);
+  var primary = storedFavicon || s2;
+  img.src = primary;
   img.onerror = function () {
-    img.src = DEFAULT_FAVICON;
-    img.onerror = null;
+    if (img.src !== s2 && primary !== s2) {
+      img.src = s2;
+      img.onerror = function () {
+        img.src = DEFAULT_FAVICON;
+        img.onerror = null;
+      };
+    } else {
+      img.src = DEFAULT_FAVICON;
+      img.onerror = null;
+    }
   };
 }
 
-// Try to upgrade favicon from cached real URL (background worker). Test-load
-// off-screen first — only apply if the real URL actually loads successfully.
-// CORP-blocked URLs silently fail the test and keep S2.
-function refreshFaviconFromCache(img, url) {
+// Resolve a favicon URL from chrome.storage.local cache (populated by the
+// background worker when the user visits a site). Calls back with the real
+// URL only after a test-load succeeds. CORP-blocked URLs silently fail.
+function resolveCachedFavicon(url, cb) {
   try {
     var domain = new URL(url).hostname.replace(/^www\./, '');
     chrome.storage.local.get(domain, function (result) {
       if (!result || !result[domain] || !result[domain].favicon) return;
       var realUrl = result[domain].favicon;
-      // Test-load off-screen before applying
       var test = new Image();
-      test.onload = function () {
-        img.src = realUrl;
-        img.onerror = null; // real URL works, clear fallback
-      };
-      test.onerror = function () {
-        // CORP or network error — keep S2, do nothing
-      };
+      test.onload = function () { cb(realUrl); };
+      test.onerror = function () {};
       test.src = realUrl;
     });
   } catch (e) {}
+}
+
+// Try to upgrade favicon from cached real URL. If `onResolved` is provided,
+// it is called with the real URL after a successful test-load — callers may
+// use this to persist the resolved favicon back into the item data so it
+// syncs across devices.
+function refreshFaviconFromCache(img, url, onResolved) {
+  resolveCachedFavicon(url, function (realUrl) {
+    img.src = realUrl;
+    img.onerror = null;
+    if (typeof onResolved === "function") onResolved(realUrl);
+  });
 }

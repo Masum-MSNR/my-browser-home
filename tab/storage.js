@@ -105,7 +105,7 @@ function renderSyncDropdown(user) {
             '  <p class="sync-dropdown-info">Sync your shortcuts and themes across all your devices</p>' +
             '  <div id="' + statusId + '" class="sync-status-msg error" style="display:none"></div>' +
             '  <button id="signin-dropdown-btn" class="sync-dropdown-btn signin">' +
-            '    <i class="fas fa-google"></i> Sign in with Google' +
+            '    <i class="fab fa-google"></i> Sign in with Google' +
             '  </button>' +
             '</div>';
 

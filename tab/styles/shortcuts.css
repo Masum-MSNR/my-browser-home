@@ -1,6 +1,8 @@
 .shortcut-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
     gap: 1.25rem;
 }
 
@@ -12,6 +14,9 @@
     transition: opacity 0.2s, transform 0.25s ease, outline 0.15s ease;
     border-radius: 10px;
     padding: 0.5rem 0.25rem;
+    width: 90px;
+    flex: 0 0 90px;
+    box-sizing: border-box;
 }
 
 .shortcut-item a,

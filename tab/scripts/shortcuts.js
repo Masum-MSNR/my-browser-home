@@ -32,14 +32,23 @@ async function renderShortcuts() {
     const link = document.createElement("a");
     link.href = shortcut.url;
     link.draggable = false;
-    const favicon = await getFaviconUrl(shortcut.url);
 
-    link.innerHTML = `
-      <div class="shortcut-icon-wrapper">
-        <img src="${favicon}" class="shortcut-icon" alt="" draggable="false" />
-      </div>
-      <div class="shortcut-label">${shortcut.name}</div>
-    `;
+    const iconWrap = document.createElement("div");
+    iconWrap.className = "shortcut-icon-wrapper";
+
+    const img = document.createElement("img");
+    img.className = "shortcut-icon";
+    img.alt = "";
+    img.draggable = false;
+    setFaviconWithFallback(img, shortcut.url, shortcut.favicon);
+    iconWrap.appendChild(img);
+
+    const label = document.createElement("div");
+    label.className = "shortcut-label";
+    label.textContent = shortcut.name;
+
+    link.appendChild(iconWrap);
+    link.appendChild(label);
 
     const menuBtn = document.createElement("button");
     menuBtn.className = "shortcut-menu-btn";
@@ -137,10 +146,11 @@ async function renderShortcuts() {
       if (!Array.isArray(all)) all = [];
       var moved = all.splice(fromIndex, 1)[0];
       all.splice(index, 0, moved);
+      var now = Date.now();
       for (var i = 0; i < all.length; i++) {
         all[i].position = i;
+        all[i].updatedAt = now;
       }
-      if (moved) moved.updatedAt = Date.now();
       await setShortcuts(all);
 
       // Move DOM element for smooth visual swap
@@ -198,8 +208,8 @@ function addAddShortcutButton() {
     if (fromIndex >= 0 && fromIndex < all.length) {
       var moved = all.splice(fromIndex, 1)[0];
       all.push(moved);
-      for (var i = 0; i < all.length; i++) { all[i].position = i; }
-      if (moved) moved.updatedAt = Date.now();
+      var now = Date.now();
+      for (var i = 0; i < all.length; i++) { all[i].position = i; all[i].updatedAt = now; }
       await setShortcuts(all);
 
       // Move DOM element to end (before add button)
@@ -313,12 +323,34 @@ window.addEventListener("syncdataloaded", async function () {
 });
 
 // === Live favicon refresh for shortcuts ===
+// Persists the resolved favicon URL into the shortcut data so it syncs
+// across devices and survives chrome.storage.local cache loss.
+async function persistShortcutFavicon(href, realUrl) {
+    var all = await getShortcuts();
+    if (!Array.isArray(all)) return;
+    var changed = false;
+    for (var i = 0; i < all.length; i++) {
+        if (all[i] && all[i].url === href && all[i].favicon !== realUrl) {
+            all[i].favicon = realUrl;
+            all[i].updatedAt = Date.now();
+            changed = true;
+        }
+    }
+    if (changed) await setShortcuts(all);
+}
+
 function refreshShortcutFavicons() {
     var items = shortcutList.querySelectorAll(".shortcut-item a");
     for (var i = 0; i < items.length; i++) {
         var img = items[i].querySelector(".shortcut-icon");
         var href = items[i].getAttribute("href");
-        if (img && href) refreshFaviconFromCache(img, href);
+        if (img && href) {
+            (function (im, hr) {
+                refreshFaviconFromCache(im, hr, function (realUrl) {
+                    persistShortcutFavicon(hr, realUrl);
+                });
+            })(img, href);
+        }
     }
 }
 
@@ -336,7 +368,13 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
         var href = items[i].getAttribute("href");
         if (href && href.indexOf(updatedDomain) !== -1) {
             var img = items[i].querySelector(".shortcut-icon");
-            if (img) refreshFaviconFromCache(img, href);
+            if (img) {
+                (function (im, hr) {
+                    refreshFaviconFromCache(im, hr, function (realUrl) {
+                        persistShortcutFavicon(hr, realUrl);
+                    });
+                })(img, href);
+            }
         }
     }
 });
