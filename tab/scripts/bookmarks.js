@@ -666,9 +666,6 @@ async function reorderRootFolders(fromIdx, toIdx, mode) {
             rootFolders[j].updatedAt = Date.now();
         }
     }
-            rootFolders[j].updatedAt = Date.now();
-        }
-    }
     for (var k = 0; k < rootFolders.length; k++) {
         for (var m = 0; m < folders.length; m++) {
             if (folders[m].id === rootFolders[k].id) folders[m].position = rootFolders[k].position;
