@@ -1,0 +1,94 @@
+const fs = require('fs');
+const vm = require('vm');
+
+function createSyncContext() {
+    const storage = {
+        shortcuts: [{ id: 'local-shortcut', url: 'https://old-shortcut.test', name: 'old shortcut', position: 0, updatedAt: 1000 }],
+        bookmarks: [{ id: 'local-bookmark', url: 'https://old-bookmark.test', name: 'old bookmark', folderId: null, position: 0, updatedAt: 1000 }],
+        bookmarkFolders: [{ id: 'local-folder', name: 'old folder', parentId: null, position: 0, updatedAt: 1000 }],
+        mailShortcuts: [],
+        customBg: 'local-bg'
+    };
+    const localStorageData = {
+        _fbu: JSON.stringify({ uid: 'u1', email: 'u@test.local', token: 'token' }),
+        _deleted: '{}'
+    };
+    const remoteDoc = {
+        shortcuts: [{ id: 'remote-shortcut', url: 'https://remote-shortcut.test', name: 'remote shortcut', position: 0, updatedAt: 5000 }],
+        bookmarks: [{ id: 'remote-bookmark', url: 'https://remote-bookmark.test', name: 'remote bookmark', folderId: null, position: 0, updatedAt: 5000 }],
+        bookmarkFolders: [{ id: 'remote-folder', name: 'remote folder', parentId: null, position: 0, updatedAt: 5000 }],
+        mailShortcuts: [],
+        customBg: 'remote-bg',
+        _deleted: {}
+    };
+    const remoteWrites = [];
+    const context = {
+        console: console,
+        Date: Date,
+        JSON: JSON,
+        String: String,
+        Error: Error,
+        Array: Array,
+        Object: Object,
+        Promise: Promise,
+        setTimeout: setTimeout,
+        clearTimeout: clearTimeout,
+        setInterval: function () { return 0; },
+        fetch: async function () { return { ok: true, status: 200, json: async function () { return { fields: {} }; } }; },
+        crypto: { randomUUID: function () { return 'uuid-' + Math.random().toString(16).slice(2); } },
+        localStorage: {
+            getItem: function (key) { return Object.prototype.hasOwnProperty.call(localStorageData, key) ? localStorageData[key] : null; },
+            setItem: function (key, value) { localStorageData[key] = String(value); },
+            removeItem: function (key) { delete localStorageData[key]; }
+        },
+        chrome: {
+            storage: { onChanged: { addListener: function () {} } },
+            runtime: { sendMessage: function () {} }
+        },
+        document: { visibilityState: 'visible', addEventListener: function () {}, getElementById: function () { return null; } },
+        window: { dispatchEvent: function () {} },
+        CustomEvent: function CustomEvent(type) { this.type = type; },
+        syncGet: async function (key) { return storage[key]; },
+        syncSet: async function (obj) { Object.assign(storage, JSON.parse(JSON.stringify(obj))); },
+        updateSyncUI: function () {}
+    };
+    vm.createContext(context);
+    vm.runInContext(fs.readFileSync('tab/sync.js', 'utf8'), context);
+    context.fbGet = async function () { return JSON.parse(JSON.stringify(remoteDoc)); };
+    context.fbSet = async function (path, obj) { remoteWrites.push(JSON.parse(JSON.stringify(obj))); };
+    context.fbToken = async function () { return 'token'; };
+    return { context, storage, remoteWrites };
+}
+
+function ids(items) {
+    return (items || []).map(function (item) { return item.id; }).join(',');
+}
+
+function assert(label, condition) {
+    if (!condition) throw new Error(label);
+    console.log('PASS ' + label);
+}
+
+(async function run() {
+    const test = createSyncContext();
+
+    test.context.markSyncDirty('bookmarks');
+    await test.context.initSync();
+
+    assert('pre-initial dirty bookmark mark is ignored', !test.context.isSyncDirty('bookmarks'));
+    assert('initial pull replaces stale local bookmarks with remote bookmarks', ids(test.storage.bookmarks) === 'remote-bookmark');
+    assert('initial pull replaces stale local folders with remote folders', ids(test.storage.bookmarkFolders) === 'remote-folder');
+    assert('initial pull replaces stale local shortcuts with remote shortcuts', ids(test.storage.shortcuts) === 'remote-shortcut');
+
+    test.storage.bookmarks.push({ id: 'local-added-bookmark', url: 'https://added.test', name: 'added', folderId: null, position: 1, updatedAt: 7000 });
+    test.context.markSyncDirty('bookmarks');
+    await test.context.fbSaveAll();
+
+    const write = test.remoteWrites[test.remoteWrites.length - 1];
+    assert('post-initial dirty bookmark save preserves remote bookmark', ids(write.bookmarks).indexOf('remote-bookmark') !== -1);
+    assert('post-initial dirty bookmark save includes local bookmark edit', ids(write.bookmarks).indexOf('local-added-bookmark') !== -1);
+    assert('clean folders are not overwritten by stale local folder state', ids(write.bookmarkFolders) === 'remote-folder');
+})().catch(function (err) {
+    console.error('FAIL ' + err.message);
+    process.exit(1);
+});

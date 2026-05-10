@@ -9,6 +9,7 @@ var initialSyncPromise = null;
 var syncDirty = {};
 
 function markSyncDirty(key) {
+    if (!syncInitialized && localStorage.getItem("_fbu")) return;
     if (key) syncDirty[key] = Date.now();
 }
 

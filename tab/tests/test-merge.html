@@ -91,7 +91,7 @@ function assertDeepEqual(label, a, b) {
 
 // Helper: make a shortcut object
 function S(id, url, updatedAt, position) {
-    return { id: id, url: url || "https://" + id + ".com", name: id, updatedAt: updatedAt || 1000, position: position !== undefined ? position : 0 };
+    return { id: id, url: url !== undefined ? url : "https://" + id + ".com", name: id, updatedAt: updatedAt || 1000, position: position !== undefined ? position : 0 };
 }
 
 // === Tests ===
