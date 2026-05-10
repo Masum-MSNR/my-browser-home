@@ -23,6 +23,7 @@ const themes = [
 
 var THEME_CACHE_KEY = "themeCache";
 var cachedTheme = null;
+var activeThemeUrl = null;
 
 async function preloadCache() {
   var result = await chrome.storage.local.get(THEME_CACHE_KEY);
@@ -85,7 +86,15 @@ async function downloadAndCache(url) {
   });
 }
 
-async function applyTheme(url) {
+async function applyTheme(url, options) {
+  if (!url) return;
+  options = options || {};
+  var persist = options.persist === true;
+
+  if (activeThemeUrl === url && !persist) {
+    return;
+  }
+
   // Check preloaded cache first — no network if already cached
   if (cachedTheme && cachedTheme.url === url && cachedTheme.dataUrl) {
     setBodyBackground(cachedTheme.dataUrl);
@@ -109,6 +118,13 @@ async function applyTheme(url) {
     }
   }
 
+  activeThemeUrl = url;
+
+  if (!persist) return;
+
+  var saved = await syncGet("customBg");
+  if (saved === url) return;
+
   await syncSet({ customBg: url });
   if (typeof markSyncDirty === "function") markSyncDirty("customBg");
   if (typeof autoSync === "function") autoSync();
@@ -123,7 +139,7 @@ function renderThemeOptions() {
     img.alt = theme.name;
     img.className = "theme-thumb";
     img.title = theme.name;
-    img.onclick = function () { applyTheme(theme.url); };
+    img.onclick = function () { applyTheme(theme.url, { persist: true }); };
     container.appendChild(img);
   });
 }
@@ -132,7 +148,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   await preloadCache();
   var saved = await syncGet("customBg");
   if (saved) {
-    applyTheme(saved);
+    await applyTheme(saved);
   } else {
     document.body.classList.add("dark-text");
   }
@@ -149,5 +165,5 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 window.addEventListener("syncdataloaded", async function () {
   var saved = await syncGet("customBg");
-  if (saved) applyTheme(saved);
+  if (saved) await applyTheme(saved);
 });
