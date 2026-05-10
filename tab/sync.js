@@ -24,6 +24,13 @@ function clearSyncDirty(keys) {
     }
 }
 
+async function waitForSyncReady() {
+    if (initialSyncPromise && !syncInitialized) {
+        try { await initialSyncPromise; } catch (e) {}
+    }
+    return syncInitialized;
+}
+
 function getSyncId() {
     return currentUser ? currentUser.uid : null;
 }

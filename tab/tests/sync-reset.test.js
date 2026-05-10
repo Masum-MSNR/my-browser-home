@@ -1,7 +1,8 @@
 const fs = require('fs');
 const vm = require('vm');
 
-function createSyncContext() {
+function createSyncContext(options) {
+    options = options || {};
     const storage = {
         shortcuts: [{ id: 'local-shortcut', url: 'https://old-shortcut.test', name: 'old shortcut', position: 0, updatedAt: 1000 }],
         bookmarks: [{ id: 'local-bookmark', url: 'https://old-bookmark.test', name: 'old bookmark', folderId: null, position: 0, updatedAt: 1000 }],
@@ -22,6 +23,13 @@ function createSyncContext() {
         _deleted: {}
     };
     const remoteWrites = [];
+    let releaseInitialGet = null;
+    let initialGetPromise = null;
+    if (options.deferInitialGet) {
+        initialGetPromise = new Promise(function (resolve) {
+            releaseInitialGet = resolve;
+        });
+    }
     const context = {
         console: console,
         Date: Date,
@@ -54,10 +62,20 @@ function createSyncContext() {
     };
     vm.createContext(context);
     vm.runInContext(fs.readFileSync('tab/sync.js', 'utf8'), context);
-    context.fbGet = async function () { return JSON.parse(JSON.stringify(remoteDoc)); };
+    context.fbGet = async function () {
+        if (initialGetPromise) await initialGetPromise;
+        return JSON.parse(JSON.stringify(remoteDoc));
+    };
     context.fbSet = async function (path, obj) { remoteWrites.push(JSON.parse(JSON.stringify(obj))); };
     context.fbToken = async function () { return 'token'; };
-    return { context, storage, remoteWrites };
+    return {
+        context,
+        storage,
+        remoteWrites,
+        releaseInitialGet: function () {
+            if (releaseInitialGet) releaseInitialGet();
+        }
+    };
 }
 
 function ids(items) {
@@ -70,6 +88,17 @@ function assert(label, condition) {
 }
 
 (async function run() {
+    const delayed = createSyncContext({ deferInitialGet: true });
+    const delayedInit = delayed.context.initSync();
+    let waitResolved = false;
+    const waiter = delayed.context.waitForSyncReady().then(function () { waitResolved = true; });
+    await Promise.resolve();
+    assert('waitForSyncReady stays pending while initial sync is in flight', waitResolved === false);
+    delayed.releaseInitialGet();
+    await delayedInit;
+    await waiter;
+    assert('waitForSyncReady resolves after initial sync completes', waitResolved === true);
+
     const test = createSyncContext();
 
     test.context.markSyncDirty('bookmarks');

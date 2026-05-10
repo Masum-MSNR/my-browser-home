@@ -12,6 +12,7 @@ var barFolderOpenId = null;
 
 // === Storage ===
 async function getBookmarks() {
+    if (typeof waitForSyncReady === "function") await waitForSyncReady();
     return (await syncGet("bookmarks")) || [];
 }
 async function setBookmarks(val) {
@@ -20,6 +21,7 @@ async function setBookmarks(val) {
     if (typeof autoSync === "function") autoSync();
 }
 async function getFolders() {
+    if (typeof waitForSyncReady === "function") await waitForSyncReady();
     return (await syncGet("bookmarkFolders")) || [];
 }
 async function setFolders(val) {
