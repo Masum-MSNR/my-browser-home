@@ -23,7 +23,27 @@ function storeTabFaviconCache(tab) {
     }
 }
 
+function maybeStoreUpdatedFavicon(changeInfo, tab) {
+    if (!tab) return;
+    if (changeInfo && changeInfo.favIconUrl) {
+        storeTabFaviconCache({
+            url: tab.url,
+            favIconUrl: changeInfo.favIconUrl,
+            title: tab.title || tab.url
+        });
+        return;
+    }
+    if (changeInfo && changeInfo.status === "complete" && tab.favIconUrl) {
+        storeTabFaviconCache(tab);
+    }
+}
+
+chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
+    maybeStoreUpdatedFavicon(changeInfo, tab);
+});
+
 chrome.webNavigation.onCompleted.addListener(function (details) {
+    if (details.frameId !== 0) return;
     var tabId = details.tabId;
     chrome.tabs.get(tabId, function (tab) {
         storeTabFaviconCache(tab);
