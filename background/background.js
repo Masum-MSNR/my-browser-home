@@ -1,14 +1,30 @@
 importScripts('../tab/utils.js');
 
+function storeTabFaviconCache(tab) {
+    if (!tab || !tab.url || !tab.favIconUrl) return;
+    var rootDomain = getFullDomain(tab.url);
+    if (!rootDomain) return;
+
+    chrome.storage.local.get(rootDomain, function (result) {
+        var existing = result && result[rootDomain] && typeof result[rootDomain] === "object" ? result[rootDomain] : {};
+        chrome.storage.local.set({
+            [rootDomain]: Object.assign({}, existing, {
+                url: tab.url,
+                favicon: tab.favIconUrl,
+                title: tab.title || tab.url
+            })
+        });
+    });
+
+    if (typeof primeFaviconCache === "function") {
+        primeFaviconCache(tab.url, tab.favIconUrl, tab.favIconUrl);
+    }
+}
+
 chrome.webNavigation.onCompleted.addListener(function (details) {
     var tabId = details.tabId;
     chrome.tabs.get(tabId, function (tab) {
-        if (!tab || !tab.url || !tab.favIconUrl) return;
-        var rootDomain = getFullDomain(tab.url);
-        if (!rootDomain) return;
-        chrome.storage.local.set({
-            [rootDomain]: { url: tab.url, favicon: tab.favIconUrl, title: tab.title || tab.url }
-        });
+        storeTabFaviconCache(tab);
     });
 });
 

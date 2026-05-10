@@ -1402,7 +1402,7 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
     if (areaName !== "local") return;
     var updatedDomain = null;
     for (var key in changes) {
-        if (changes[key].newValue && changes[key].newValue.favicon) {
+        if (changes[key].newValue && (changes[key].newValue.favicon || changes[key].newValue.faviconDataUrl)) {
             updatedDomain = key; break;
         }
     }
