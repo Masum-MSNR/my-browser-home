@@ -126,13 +126,21 @@ function um(v) { return v.stringValue != null ? v.stringValue : v.doubleValue !=
 var syncId = null;
 var docPath = null;
 
-function ensureShortcut(s, pos) {
-    if (!s || !s.url) return null;
-    if (!s.id) s.id = crypto.randomUUID();
-    if (!s.updatedAt) s.updatedAt = Date.now();
-    if (pos !== undefined) s.position = pos;
-    if (s.position === undefined) s.position = 0;
-    return s;
+function ensureSyncItem(item, pos) {
+    if (!item) return null;
+    if (!item.id) item.id = crypto.randomUUID();
+    if (!item.updatedAt) item.updatedAt = Date.now();
+    if (pos !== undefined) item.position = pos;
+    if (item.position === undefined) item.position = 0;
+    return item;
+}
+
+function isUrlSyncItem(item) {
+    return !!(item && item.url);
+}
+
+function isFolderSyncItem(item) {
+    return !!(item && item.name);
 }
 
 // Merge mail accounts. Mail items are keyed by email. Local order wins
@@ -160,7 +168,8 @@ function mergeMailList(local, remote) {
     return out;
 }
 
-function mergeItems(local, remote, localDeleted, remoteDeleted) {
+function mergeItems(local, remote, localDeleted, remoteDeleted, isValidItem) {
+    if (typeof isValidItem !== "function") isValidItem = isUrlSyncItem;
     var tombstones = {};
     // Merge tombstones: remote deletions also count locally
     if (localDeleted) {
@@ -181,16 +190,16 @@ function mergeItems(local, remote, localDeleted, remoteDeleted) {
     // Index local by id
     var byId = {};
     for (var i = 0; i < local.length; i++) {
-        var s = ensureShortcut(local[i], i);
-        if (!s) continue;
+        var s = ensureSyncItem(local[i], i);
+        if (!s || !isValidItem(s)) continue;
         if (tombstones[s.id] !== undefined) continue; // Deleted — always skip
         byId[s.id] = s;
     }
 
     // Merge remote: keep latest by updatedAt
     for (var i = 0; i < remote.length; i++) {
-        var s = ensureShortcut(remote[i]);
-        if (!s) continue;
+        var s = ensureSyncItem(remote[i]);
+        if (!s || !isValidItem(s)) continue;
         if (tombstones[s.id] !== undefined) continue; // Deleted — always skip
         var existing = byId[s.id];
         if (!existing || (s.updatedAt || 0) > (existing.updatedAt || 0)) {
@@ -208,7 +217,7 @@ function mergeItems(local, remote, localDeleted, remoteDeleted) {
     // Normalize positions and filter nulls
     var clean = [];
     for (var i = 0; i < result.length; i++) {
-        if (result[i] && result[i].url) {
+        if (isValidItem(result[i])) {
             result[i].position = i;
             clean.push(result[i]);
         }
@@ -315,9 +324,9 @@ async function fbSaveAll() {
     var remoteMail = doc && doc.mailShortcuts ? doc.mailShortcuts : [];
     var remoteBg = doc && doc.customBg ? doc.customBg : null;
 
-    var merged = mergeItems(local, remote, localDeleted, remoteDeleted);
-    var mergedBookmarks = mergeItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted);
-    var mergedFolders = mergeItems(localFolders, remoteFolders, localDeleted, remoteDeleted);
+    var merged = mergeItems(local, remote, localDeleted, remoteDeleted, isUrlSyncItem);
+    var mergedBookmarks = mergeItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted, isUrlSyncItem);
+    var mergedFolders = mergeItems(localFolders, remoteFolders, localDeleted, remoteDeleted, isFolderSyncItem);
     var mergedMail = mergeMailList(localMail, remoteMail);
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
     var mergedBg = customBg || remoteBg;
@@ -381,9 +390,9 @@ async function fbLoadAll() {
         try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
         var remoteDeleted = d._deleted || {};
 
-        var merged = mergeItems(local, d.shortcuts || [], localDeleted, remoteDeleted);
-        var mergedBookmarks = mergeItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted);
-        var mergedFolders = mergeItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted);
+        var merged = mergeItems(local, d.shortcuts || [], localDeleted, remoteDeleted, isUrlSyncItem);
+        var mergedBookmarks = mergeItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted, isUrlSyncItem);
+        var mergedFolders = mergeItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted, isFolderSyncItem);
         var mergedMail = mergeMailList(localMail, d.mailShortcuts || []);
         var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
 

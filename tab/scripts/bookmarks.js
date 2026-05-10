@@ -26,6 +26,42 @@ async function setFolders(val) {
     if (typeof autoSync === "function") autoSync();
 }
 
+async function repairBookmarkHierarchy() {
+    var folders = await getFolders();
+    if (!Array.isArray(folders)) folders = [];
+    var bookmarks = await getBookmarks();
+    if (!Array.isArray(bookmarks)) bookmarks = [];
+
+    var knownFolderIds = {};
+    for (var i = 0; i < folders.length; i++) {
+        if (folders[i] && folders[i].id) knownFolderIds[folders[i].id] = true;
+    }
+
+    var changedFolders = false;
+    var changedBookmarks = false;
+    var now = Date.now();
+
+    for (var j = 0; j < folders.length; j++) {
+        if (folders[j] && folders[j].parentId && !knownFolderIds[folders[j].parentId]) {
+            folders[j].parentId = null;
+            folders[j].updatedAt = now;
+            changedFolders = true;
+        }
+    }
+
+    for (var k = 0; k < bookmarks.length; k++) {
+        if (bookmarks[k] && bookmarks[k].folderId && !knownFolderIds[bookmarks[k].folderId]) {
+            bookmarks[k].folderId = null;
+            bookmarks[k].updatedAt = now;
+            changedBookmarks = true;
+        }
+    }
+
+    if (changedFolders) await setFolders(folders);
+    if (changedBookmarks) await setBookmarks(bookmarks);
+    return changedFolders || changedBookmarks;
+}
+
 // === Favicon ===
 // === Collect all bookmarks in a folder (recursive) ===
 async function getAllBookmarksInFolder(folderId) {
@@ -1216,7 +1252,13 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
 // === Init ===
 document.body.classList.add("bookmark-bar-visible");
 window.addEventListener("syncdataloaded", async function () {
+    await repairBookmarkHierarchy();
     await renderBookmarkBar();
     refreshAllFaviconsFromCache();
 });
-renderBookmarkBar().then(refreshAllFaviconsFromCache);
+
+(async function initBookmarks() {
+    await repairBookmarkHierarchy();
+    await renderBookmarkBar();
+    refreshAllFaviconsFromCache();
+})();
