@@ -12,7 +12,6 @@ var currentUser = null;
 var syncInitialized = false;
 var initialSyncPromise = null;
 var syncDirty = {};
-var SYNC_DEBUG_LOGS = true;
 var lastSeenRemoteRevision = null;
 var realtimeAuth = null;
 var realtimeDb = null;
@@ -591,18 +590,7 @@ function summarizeSyncState(shortcuts, bookmarks, folders, mail, customBg) {
 }
 
 function logSyncEvent(direction, phase, details) {
-    if (!SYNC_DEBUG_LOGS || typeof console === "undefined" || !console.log) return;
-    var payload = {
-        at: new Date().toISOString(),
-        uid: getSyncId(),
-        dirty: getDirtySyncKeys()
-    };
-    if (details) {
-        for (var key in details) {
-            if (details.hasOwnProperty(key)) payload[key] = details[key];
-        }
-    }
-    console.log("[sync][" + direction + "] " + phase + " " + JSON.stringify(payload));
+    return;
 }
 
 function getMergedDeleteMap(localDeleted, remoteDeleted) {

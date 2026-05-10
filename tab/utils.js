@@ -22,7 +22,6 @@ function getRootDomain(url) {
 
     return lastTwo;
   } catch (e) {
-    console.warn("Invalid URL:", url);
     return '';
   }
 }
@@ -32,7 +31,6 @@ function getFullDomain(url) {
     const hostname = new URL(url).hostname.toLowerCase();
     return hostname.replace(/^www\./, '');
   } catch (e) {
-    console.warn("Invalid URL:", url);
     return '';
   }
 }

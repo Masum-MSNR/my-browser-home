@@ -76,9 +76,7 @@ async function downloadAndCache(url) {
       cachedTheme = { url: url, dataUrl: dataUrl, brightness: result.brightness };
       chrome.storage.local.set({
         [THEME_CACHE_KEY]: cachedTheme
-      }).catch(function (e) {
-        console.warn("Failed to persist theme cache:", e);
-      });
+      }).catch(function () {});
       resolve({ dataUrl: dataUrl, brightness: result.brightness });
     };
     img.onerror = function () { reject(new Error("Failed to load image")); };
@@ -108,7 +106,6 @@ async function applyTheme(url, options) {
       setBodyBackground(result.dataUrl);
       applyBrightnessClass(result.brightness);
     } catch (e) {
-      console.warn("Theme caching failed, falling back to URL:", e.message);
       var img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = function () {

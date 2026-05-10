@@ -216,12 +216,8 @@ async function scanAccountChooserPageAndSave() {
             }
             await setMailShortcuts(merged);
             await renderMailList();
-        } else {
-            console.log("No Gmail accounts found.");
         }
-    } catch (err) {
-        console.error("Failed to fetch account chooser page:", err);
-    }
+    } catch (err) {}
 }
 
 if (mailDropdownHeader) {
