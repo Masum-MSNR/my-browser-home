@@ -99,6 +99,43 @@ function assert(label, condition) {
     await waiter;
     assert('waitForSyncReady resolves after initial sync completes', waitResolved === true);
 
+    const probeTest = createSyncContext();
+    await probeTest.context.initSync();
+    let fullLoadCount = 0;
+    probeTest.context.fbLoadAll = async function () { fullLoadCount++; };
+    probeTest.context.lastSeenRemoteRevision = 55;
+    probeTest.context.fbGetMasked = async function () {
+        return {
+            fields: {
+                _syncMeta: {
+                    mapValue: {
+                        fields: {
+                            rev: { doubleValue: 55 }
+                        }
+                    }
+                }
+            }
+        };
+    };
+    await probeTest.context.pullFromRemote();
+    assert('unchanged remote revision skips full pull', fullLoadCount === 0);
+
+    probeTest.context.fbGetMasked = async function () {
+        return {
+            fields: {
+                _syncMeta: {
+                    mapValue: {
+                        fields: {
+                            rev: { doubleValue: 56 }
+                        }
+                    }
+                }
+            }
+        };
+    };
+    await probeTest.context.pullFromRemote();
+    assert('changed remote revision triggers full pull once', fullLoadCount === 1);
+
     const test = createSyncContext();
 
     test.context.markSyncDirty('bookmarks');

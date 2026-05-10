@@ -8,6 +8,7 @@ var syncInitialized = false;
 var initialSyncPromise = null;
 var syncDirty = {};
 var SYNC_DEBUG_LOGS = true;
+var lastSeenRemoteRevision = null;
 
 function getDirtySyncKeys() {
     var keys = [];
@@ -478,6 +479,61 @@ async function fbGet(path, retry) {
     }
 }
 
+async function fbGetMasked(path, fieldPaths, retry) {
+    if (retry === undefined) retry = true;
+    var suffix = "";
+    if (Array.isArray(fieldPaths) && fieldPaths.length > 0) {
+        var parts = [];
+        for (var i = 0; i < fieldPaths.length; i++) {
+            parts.push("mask.fieldPaths=" + encodeURIComponent(fieldPaths[i]));
+        }
+        suffix = "?" + parts.join("&");
+    }
+    try {
+        var r = await fetch(FB_BASE + "/" + path + suffix, {
+            headers: { Authorization: "Bearer " + (await fbToken()) }
+        });
+        if (r.status === 404) return null;
+        if ((r.status === 401 || r.status === 403) && retry) {
+            await refreshToken();
+            return fbGetMasked(path, fieldPaths, false);
+        }
+        if (!r.ok) throw new Error(((await r.json()).error || {}).message || "Read failed");
+        return await r.json();
+    } catch (e) {
+        if (retry) return fbGetMasked(path, fieldPaths, false);
+        throw e;
+    }
+}
+
+function getRemoteRevisionFromDoc(doc) {
+    return doc && doc._syncMeta && doc._syncMeta.rev ? doc._syncMeta.rev : null;
+}
+
+function hasDirtySyncState() {
+    return getDirtySyncKeys().length > 0;
+}
+
+async function probeRemoteRevision() {
+    if (!getSyncId()) return { changed: false, revision: null, exists: false, reason: "signed-out" };
+    syncId = getSyncId();
+    docPath = "users/" + syncId + "/data/main";
+    var rawDoc = await fbGetMasked(docPath, ["_syncMeta"]);
+    if (!rawDoc) {
+        return { changed: lastSeenRemoteRevision !== null, revision: null, exists: false, reason: "missing" };
+    }
+    var revision = rawDoc.fields && rawDoc.fields._syncMeta ? um(rawDoc.fields._syncMeta).rev : (rawDoc.updateTime || rawDoc.createTime || null);
+    if (!revision) {
+        return { changed: true, revision: null, exists: true, reason: "unknown-revision" };
+    }
+    return {
+        changed: revision !== lastSeenRemoteRevision,
+        revision: revision,
+        exists: true,
+        reason: revision !== lastSeenRemoteRevision ? "revision-changed" : "revision-unchanged"
+    };
+}
+
 async function fbSet(path, obj, retry) {
     if (retry === undefined) retry = true;
     try {
@@ -559,6 +615,7 @@ async function fbSaveAll() {
     var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, remoteMail) : remoteMail;
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
     var mergedBg = isSyncDirty("customBg") ? customBg : remoteBg;
+    var writeRevision = Date.now();
     var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, mergedMail, mergedBg);
 
     await syncSet({
@@ -586,9 +643,13 @@ async function fbSaveAll() {
             bookmarkFolders: mergedFolders,
             mailShortcuts: mergedMail,
             customBg: mergedBg,
-            _deleted: mergedDeleted
+            _deleted: mergedDeleted,
+            _syncMeta: {
+                rev: writeRevision
+            }
         });
         lastWrittenHash = writeHash;
+        lastSeenRemoteRevision = writeRevision;
         logSyncEvent("push", "success", { docPath: docPath, merged: mergedSummary, deleted: Object.keys(mergedDeleted).sort() });
         clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
@@ -620,9 +681,11 @@ async function fbLoadAll() {
     try {
         var d = await fbGet(docPath);
         if (!d) {
+            lastSeenRemoteRevision = null;
             logSyncEvent("pull", "empty", { docPath: docPath });
             return;
         }
+        lastSeenRemoteRevision = getRemoteRevisionFromDoc(d);
 
         var local = (await syncGet("shortcuts")) || [];
         var localBookmarks = (await syncGet("bookmarks")) || [];
@@ -740,8 +803,21 @@ async function doAutoSave() {
 // === Load remote changes on tab open ===
 async function pullFromRemote() {
     if (!getSyncId() || syncBusy) return;
+    if (hasDirtySyncState()) {
+        logSyncEvent("pull", "skip", { reason: "local-dirty" });
+        return;
+    }
     syncBusy = true;
-    try { await fbLoadAll(); } catch (e) {}
+    try {
+        var probe = await probeRemoteRevision();
+        logSyncEvent("pull", "probe", probe);
+        if (probe.changed) {
+            await fbLoadAll();
+            if (probe.revision) lastSeenRemoteRevision = probe.revision;
+        }
+    } catch (e) {
+        logSyncEvent("pull", "probe-error", { message: e && e.message ? e.message : String(e) });
+    }
     syncBusy = false;
 }
 
