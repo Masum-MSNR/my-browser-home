@@ -52,11 +52,8 @@ var pendingFaviconCacheRequests = {};
   } catch (e) {}
 })();
 
-// Favicon cache is keyed by the registrable root domain so that
-// e.g. mail.google.com and www.google.com share one icon entry. The
-// background worker stores entries under the same key.
 function getFaviconCacheDomain(url) {
-  return getRootDomain(url) || getFullDomain(url);
+  return getFullDomain(url);
 }
 
 function persistFaviconDataCache() {
