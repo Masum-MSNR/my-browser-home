@@ -134,6 +134,23 @@ function clearPendingRemoteDoc() {
     pendingRemoteDoc = null;
 }
 
+function isSameOrOlderRevision(revision, referenceRevision) {
+    if (revision === null || revision === undefined || referenceRevision === null || referenceRevision === undefined) return false;
+    if (revision === referenceRevision) return true;
+
+    var numericRevision = Number(revision);
+    var numericReference = Number(referenceRevision);
+    if (!Number.isNaN(numericRevision) && !Number.isNaN(numericReference)) {
+        return numericRevision < numericReference;
+    }
+
+    if (typeof revision === "string" && typeof referenceRevision === "string") {
+        return revision < referenceRevision;
+    }
+
+    return false;
+}
+
 function stopRealtimeDocumentListener() {
     if (realtimeDocUnsubscribe) {
         try { realtimeDocUnsubscribe(); } catch (e) {}
@@ -230,7 +247,10 @@ async function flushPendingRemoteDoc() {
     if (!pendingRemoteDoc || syncBusy || hasDirtySyncState()) return;
     var queued = pendingRemoteDoc;
     pendingRemoteDoc = null;
-    if (queued.revision !== null && queued.revision === lastSeenRemoteRevision) return;
+    if (isSameOrOlderRevision(queued.revision, lastSeenRemoteRevision)) {
+        logSyncEvent("listen", "noop", { uid: queued.uid, revision: queued.revision, reason: "stale-queued-revision" });
+        return;
+    }
 
     syncBusy = true;
     try {
@@ -460,8 +480,7 @@ function ensureSyncItem(item, pos) {
     if (!item) return null;
     if (!item.id) item.id = crypto.randomUUID();
     if (!item.updatedAt) item.updatedAt = Date.now();
-    if (pos !== undefined) item.position = pos;
-    if (item.position === undefined) item.position = 0;
+    if (item.position === undefined) item.position = pos !== undefined ? pos : 0;
     return item;
 }
 

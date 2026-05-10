@@ -82,6 +82,12 @@ function ids(items) {
     return (items || []).map(function (item) { return item.id; }).join(',');
 }
 
+function idsByPosition(items) {
+    return (items || []).slice().sort(function (a, b) {
+        return (a.position || 0) - (b.position || 0);
+    }).map(function (item) { return item.id; }).join(',');
+}
+
 function assert(label, condition) {
     if (!condition) throw new Error(label);
     console.log('PASS ' + label);
@@ -154,6 +160,71 @@ function assert(label, condition) {
     assert('post-initial dirty bookmark save preserves remote bookmark', ids(write.bookmarks).indexOf('remote-bookmark') !== -1);
     assert('post-initial dirty bookmark save includes local bookmark edit', ids(write.bookmarks).indexOf('local-added-bookmark') !== -1);
     assert('clean folders are not overwritten by stale local folder state', ids(write.bookmarkFolders) === 'remote-folder');
+
+    const reorderSave = createSyncContext();
+    Object.assign(reorderSave.storage, {
+        shortcuts: [],
+        bookmarks: [
+            { id: 'a', url: 'https://a.test', name: 'A', folderId: null, position: 1, updatedAt: 2000 },
+            { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 0, updatedAt: 2000 }
+        ],
+        bookmarkFolders: [],
+        mailShortcuts: [],
+        customBg: null
+    });
+    reorderSave.context.currentUser = { uid: 'u1', email: 'u@test.local', token: 'token' };
+    reorderSave.context.syncInitialized = true;
+    reorderSave.context.fbGet = async function () {
+        return {
+            shortcuts: [],
+            bookmarks: [
+                { id: 'a', url: 'https://a.test', name: 'A', folderId: null, position: 0, updatedAt: 1000 },
+                { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 1, updatedAt: 1000 }
+            ],
+            bookmarkFolders: [],
+            mailShortcuts: [],
+            customBg: null,
+            _deleted: {},
+            _syncMeta: { rev: 10 }
+        };
+    };
+    reorderSave.context.markSyncDirty('bookmarks');
+    await reorderSave.context.fbSaveAll();
+    const reorderWrite = reorderSave.remoteWrites[reorderSave.remoteWrites.length - 1];
+    assert('dirty bookmark reorder remote write preserves local position order', idsByPosition(reorderWrite.bookmarks) === 'b,a');
+
+    const staleQueue = createSyncContext();
+    Object.assign(staleQueue.storage, {
+        shortcuts: [],
+        bookmarks: [
+            { id: 'a', url: 'https://a.test', name: 'A', folderId: null, position: 1, updatedAt: 2000 },
+            { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 0, updatedAt: 2000 }
+        ],
+        bookmarkFolders: [],
+        mailShortcuts: [],
+        customBg: null
+    });
+    const staleRemoteDoc = {
+        shortcuts: [],
+        bookmarks: [
+            { id: 'a', url: 'https://a.test', name: 'A', folderId: null, position: 0, updatedAt: 1000 },
+            { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 1, updatedAt: 1000 }
+        ],
+        bookmarkFolders: [],
+        mailShortcuts: [],
+        customBg: null,
+        _deleted: {},
+        _syncMeta: { rev: 10 }
+    };
+    staleQueue.context.currentUser = { uid: 'u1', email: 'u@test.local', token: 'token' };
+    staleQueue.context.syncInitialized = true;
+    staleQueue.context.lastSeenRemoteRevision = 10;
+    staleQueue.context.fbGet = async function () { return JSON.parse(JSON.stringify(staleRemoteDoc)); };
+    staleQueue.context.markSyncDirty('bookmarks');
+    staleQueue.context.queuePendingRemoteDoc(staleRemoteDoc, 'u1', 10, 'local-dirty');
+    await staleQueue.context.fbSaveAll();
+    await staleQueue.context.flushPendingRemoteDoc();
+    assert('stale queued listener snapshot does not reset saved bookmark reorder', idsByPosition(staleQueue.storage.bookmarks) === 'b,a');
 })().catch(function (err) {
     console.error('FAIL ' + err.message);
     process.exit(1);
