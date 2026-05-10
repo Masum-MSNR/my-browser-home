@@ -2,11 +2,22 @@
 // auto-replicated by Chrome behind our back, which previously caused two
 // devices to roll each other's writes back. localStorage is mirrored for
 // fast synchronous fallbacks elsewhere in the code.
+var SYNC_DATA_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"];
+
+function isAppSyncDataKey(key) {
+    return SYNC_DATA_KEYS.indexOf(key) !== -1;
+}
+
 function syncGet(key) {
     return new Promise(function (resolve) {
         chrome.storage.local.get(key, function (result) {
             if (result[key] !== undefined) {
                 resolve(result[key]);
+                return;
+            }
+            if (isAppSyncDataKey(key)) {
+                var localRaw = localStorage.getItem(key);
+                try { resolve(localRaw ? JSON.parse(localRaw) : localRaw); } catch (e) { resolve(localRaw); }
                 return;
             }
             // One-time migration: legacy data may still live in
@@ -169,3 +180,7 @@ function closeSyncDropdown() {
 
     updateSyncUI(getCurrentUser());
 })();
+
+if (typeof initSync === "function") {
+    initSync();
+}

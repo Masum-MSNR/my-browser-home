@@ -16,6 +16,7 @@ async function getBookmarks() {
 }
 async function setBookmarks(val) {
     await syncSet({ bookmarks: val });
+    if (typeof markSyncDirty === "function") markSyncDirty("bookmarks");
     if (typeof autoSync === "function") autoSync();
 }
 async function getFolders() {
@@ -23,6 +24,7 @@ async function getFolders() {
 }
 async function setFolders(val) {
     await syncSet({ bookmarkFolders: val });
+    if (typeof markSyncDirty === "function") markSyncDirty("bookmarkFolders");
     if (typeof autoSync === "function") autoSync();
 }
 

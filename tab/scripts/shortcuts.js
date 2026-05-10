@@ -15,6 +15,7 @@ async function getShortcuts() {
 
 async function setShortcuts(val) {
   await syncSet({ shortcuts: val });
+  if (typeof markSyncDirty === "function") markSyncDirty("shortcuts");
   if (typeof autoSync === "function") autoSync();
 }
 

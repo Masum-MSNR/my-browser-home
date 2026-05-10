@@ -4,6 +4,24 @@ var FB_BASE = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/d
 var FB_IDTK = "https://identitytoolkit.googleapis.com/v1";
 
 var currentUser = null;
+var syncInitialized = false;
+var initialSyncPromise = null;
+var syncDirty = {};
+
+function markSyncDirty(key) {
+    if (key) syncDirty[key] = Date.now();
+}
+
+function isSyncDirty(key) {
+    return !!syncDirty[key];
+}
+
+function clearSyncDirty(keys) {
+    if (!Array.isArray(keys)) return;
+    for (var i = 0; i < keys.length; i++) {
+        delete syncDirty[keys[i]];
+    }
+}
 
 function getSyncId() {
     return currentUser ? currentUser.uid : null;
@@ -359,6 +377,8 @@ async function fbSet(path, obj, retry) {
 }
 
 async function initSync() {
+    if (initialSyncPromise) return initialSyncPromise;
+    initialSyncPromise = (async function () {
     var cached = JSON.parse(localStorage.getItem("_fbu") || "null");
     if (cached && cached.token) {
         currentUser = cached;
@@ -366,7 +386,10 @@ async function initSync() {
         docPath = "users/" + syncId + "/data/main";
         try { await fbLoadAll(); } catch (e) { setSyncIcon("error"); }
     }
+    syncInitialized = true;
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
+    })();
+    return initialSyncPromise;
 }
 
 async function fbSaveAll() {
@@ -393,16 +416,22 @@ async function fbSaveAll() {
     var remoteMail = doc && doc.mailShortcuts ? doc.mailShortcuts : [];
     var remoteBg = doc && doc.customBg ? doc.customBg : null;
 
-    var merged = mergeFlatItems(local, remote, localDeleted, remoteDeleted, isUrlSyncItem);
-    var mergedBookmarks = mergeScopedItems(localBookmarks, remoteBookmarks, localDeleted, remoteDeleted, isUrlSyncItem, function (item) {
+    var localForMerge = isSyncDirty("shortcuts") ? local : remote;
+    var localBookmarksForMerge = isSyncDirty("bookmarks") ? localBookmarks : remoteBookmarks;
+    var localFoldersForMerge = isSyncDirty("bookmarkFolders") ? localFolders : remoteFolders;
+    var localMailForMerge = isSyncDirty("mailShortcuts") ? localMail : remoteMail;
+    var deletedForMerge = (isSyncDirty("shortcuts") || isSyncDirty("bookmarks") || isSyncDirty("bookmarkFolders")) ? localDeleted : {};
+
+    var merged = mergeFlatItems(localForMerge, remote, deletedForMerge, remoteDeleted, isUrlSyncItem);
+    var mergedBookmarks = mergeScopedItems(localBookmarksForMerge, remoteBookmarks, deletedForMerge, remoteDeleted, isUrlSyncItem, function (item) {
         return item && item.folderId;
     });
-    var mergedFolders = mergeScopedItems(localFolders, remoteFolders, localDeleted, remoteDeleted, isFolderSyncItem, function (item) {
+    var mergedFolders = mergeScopedItems(localFoldersForMerge, remoteFolders, deletedForMerge, remoteDeleted, isFolderSyncItem, function (item) {
         return item && item.parentId;
     });
-    var mergedMail = mergeMailList(localMail, remoteMail);
+    var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, remoteMail) : remoteMail;
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
-    var mergedBg = customBg || remoteBg;
+    var mergedBg = isSyncDirty("customBg") ? customBg : remoteBg;
 
     await syncSet({
         shortcuts: merged,
@@ -416,6 +445,7 @@ async function fbSaveAll() {
     // Skip Firestore write if nothing changed since last write
     var writeHash = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, bg: mergedBg, d: mergedDeleted });
     if (writeHash === lastWrittenHash) {
+        clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
         return;
     }
@@ -430,6 +460,7 @@ async function fbSaveAll() {
             _deleted: mergedDeleted
         });
         lastWrittenHash = writeHash;
+        clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
     } catch (e) {
         setSyncIcon("error");
@@ -463,20 +494,30 @@ async function fbLoadAll() {
         try { localDeleted = JSON.parse(localStorage.getItem("_deleted") || "{}"); } catch (e) {}
         var remoteDeleted = d._deleted || {};
 
-        var merged = mergeFlatItems(local, d.shortcuts || [], localDeleted, remoteDeleted, isUrlSyncItem);
-        var mergedBookmarks = mergeScopedItems(localBookmarks, d.bookmarks || [], localDeleted, remoteDeleted, isUrlSyncItem, function (item) {
+        var localForMerge = isSyncDirty("shortcuts") ? local : (d.shortcuts || []);
+        var localBookmarksForMerge = isSyncDirty("bookmarks") ? localBookmarks : (d.bookmarks || []);
+        var localFoldersForMerge = isSyncDirty("bookmarkFolders") ? localFolders : (d.bookmarkFolders || []);
+        var localMailForMerge = isSyncDirty("mailShortcuts") ? localMail : (d.mailShortcuts || []);
+        var deletedForMerge = (isSyncDirty("shortcuts") || isSyncDirty("bookmarks") || isSyncDirty("bookmarkFolders")) ? localDeleted : {};
+
+        var merged = mergeFlatItems(localForMerge, d.shortcuts || [], deletedForMerge, remoteDeleted, isUrlSyncItem);
+        var mergedBookmarks = mergeScopedItems(localBookmarksForMerge, d.bookmarks || [], deletedForMerge, remoteDeleted, isUrlSyncItem, function (item) {
             return item && item.folderId;
         });
-        var mergedFolders = mergeScopedItems(localFolders, d.bookmarkFolders || [], localDeleted, remoteDeleted, isFolderSyncItem, function (item) {
+        var mergedFolders = mergeScopedItems(localFoldersForMerge, d.bookmarkFolders || [], deletedForMerge, remoteDeleted, isFolderSyncItem, function (item) {
             return item && item.parentId;
         });
-        var mergedMail = mergeMailList(localMail, d.mailShortcuts || []);
+        var mergedMail = isSyncDirty("mailShortcuts") ? mergeMailList(localMailForMerge, d.mailShortcuts || []) : (d.mailShortcuts || []);
         var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
 
         // Only update UI if data actually changed
         var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, m: localMail, d: localDeleted });
         var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, m: mergedMail, d: mergedDeleted });
-        if (localBefore === mergedAfter) return;
+        if (localBefore === mergedAfter) {
+            clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
+            setSyncIcon("synced");
+            return;
+        }
 
         await syncSet({
             shortcuts: merged,
@@ -486,6 +527,7 @@ async function fbLoadAll() {
         });
         localStorage.setItem("_deleted", JSON.stringify(mergedDeleted));
         if (d.customBg) await syncSet({ customBg: d.customBg });
+        clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"]);
         setSyncIcon("synced");
         window.dispatchEvent(new CustomEvent("syncdataloaded"));
     } catch (e) {
@@ -513,6 +555,15 @@ function autoSync() {
 }
 
 async function doAutoSave() {
+    if (!syncInitialized) {
+        if (initialSyncPromise) {
+            try { await initialSyncPromise; } catch (e) {}
+        }
+        if (!syncInitialized) {
+            autoSyncTimer = setTimeout(function () { doAutoSave(); }, 500);
+            return;
+        }
+    }
     if (syncBusy) {
         // A pull is in flight; retry shortly so we don't drop the change.
         autoSyncTimer = setTimeout(function () { doAutoSave(); }, 500);
@@ -594,5 +645,3 @@ function setSyncIcon(state) {
 function getCurrentUser() {
     return currentUser;
 }
-
-initSync();

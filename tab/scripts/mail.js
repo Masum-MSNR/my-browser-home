@@ -34,6 +34,7 @@ async function getMailShortcuts() {
 
 async function setMailShortcuts(val) {
     await syncSet({ mailShortcuts: val });
+    if (typeof markSyncDirty === "function") markSyncDirty("mailShortcuts");
     if (typeof autoSync === "function") autoSync();
 }
 
