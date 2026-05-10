@@ -99,38 +99,46 @@ async function renderShortcuts() {
 
     div.addEventListener("dragstart", (e) => {
       e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", index);
+      e.dataTransfer.setData("text/plain", String(index));
       div.classList.add("dragging");
     });
 
     div.addEventListener("dragend", () => {
       div.classList.remove("dragging");
       document.querySelectorAll(".shortcut-item").forEach(item => {
-        item.classList.remove("drag-over");
+        item.classList.remove("drag-over", "drag-insert-before", "drag-insert-after");
         item._dragCounter = 0;
       });
     });
 
+    function computeDropZone(e) {
+      var rect = div.getBoundingClientRect();
+      var pct = (e.clientX - rect.left) / rect.width;
+      if (pct < 0.25) return "before";
+      if (pct > 0.75) return "after";
+      return "swap";
+    }
+
     div.addEventListener("dragover", (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      if (!div.classList.contains("add-shortcut-btn") && !div.classList.contains("dragging")) {
-        div.classList.add("drag-over");
-      }
+      if (div.classList.contains("add-shortcut-btn") || div.classList.contains("dragging")) return;
+      var zone = computeDropZone(e);
+      div.classList.remove("drag-over", "drag-insert-before", "drag-insert-after");
+      if (zone === "before") div.classList.add("drag-insert-before");
+      else if (zone === "after") div.classList.add("drag-insert-after");
+      else div.classList.add("drag-over");
     });
 
     div.addEventListener("dragenter", (e) => {
       e.preventDefault();
       div._dragCounter = (div._dragCounter || 0) + 1;
-      if (!div.classList.contains("add-shortcut-btn") && !div.classList.contains("dragging")) {
-        div.classList.add("drag-over");
-      }
     });
 
     div.addEventListener("dragleave", () => {
       div._dragCounter = (div._dragCounter || 0) - 1;
       if (div._dragCounter <= 0) {
-        div.classList.remove("drag-over");
+        div.classList.remove("drag-over", "drag-insert-before", "drag-insert-after");
       }
     });
 
@@ -138,34 +146,40 @@ async function renderShortcuts() {
       e.preventDefault();
       e.stopPropagation();
       div._dragCounter = 0;
-      div.classList.remove("drag-over");
+      div.classList.remove("drag-over", "drag-insert-before", "drag-insert-after");
       const fromIndex = parseInt(e.dataTransfer.getData("text/plain"), 10);
       if (isNaN(fromIndex) || fromIndex === index) return;
 
+      var zone = computeDropZone(e);
+
       var all = await getShortcuts();
       if (!Array.isArray(all)) all = [];
-      var moved = all.splice(fromIndex, 1)[0];
-      all.splice(index, 0, moved);
+      if (fromIndex < 0 || fromIndex >= all.length || index < 0 || index >= all.length) return;
+
+      if (zone === "swap") {
+        var tmp = all[fromIndex];
+        all[fromIndex] = all[index];
+        all[index] = tmp;
+      } else {
+        var moved = all.splice(fromIndex, 1)[0];
+        var insertAt;
+        if (zone === "before") {
+          insertAt = fromIndex < index ? index - 1 : index;
+        } else { // after
+          insertAt = fromIndex < index ? index : index + 1;
+        }
+        all.splice(insertAt, 0, moved);
+      }
+
       var now = Date.now();
       for (var i = 0; i < all.length; i++) {
         all[i].position = i;
         all[i].updatedAt = now;
       }
       await setShortcuts(all);
-
-      // Move DOM element for smooth visual swap
-      var items = shortcutList.querySelectorAll(".shortcut-item:not(.add-shortcut-btn)");
-      var dragItem = items[fromIndex];
-      var targetItem = items[index];
-      if (dragItem && targetItem && dragItem !== targetItem) {
-        if (fromIndex < index) {
-          targetItem.after(dragItem);
-        } else {
-          targetItem.before(dragItem);
-        }
-        dragItem.classList.add("settled");
-        setTimeout(function () { dragItem.classList.remove("settled"); }, 300);
-      }
+      // Re-render so indices captured in closures stay consistent with state
+      await renderShortcuts();
+      refreshShortcutFavicons();
     });
 
     div.appendChild(link);
@@ -211,15 +225,8 @@ function addAddShortcutButton() {
       var now = Date.now();
       for (var i = 0; i < all.length; i++) { all[i].position = i; all[i].updatedAt = now; }
       await setShortcuts(all);
-
-      // Move DOM element to end (before add button)
-      var items = shortcutList.querySelectorAll(".shortcut-item:not(.add-shortcut-btn)");
-      var dragItem = items[fromIndex];
-      if (dragItem) {
-        addShortcutButton.before(dragItem);
-        dragItem.classList.add("settled");
-        setTimeout(function () { dragItem.classList.remove("settled"); }, 300);
-      }
+      await renderShortcuts();
+      refreshShortcutFavicons();
     }
   });
 

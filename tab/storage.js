@@ -1,22 +1,37 @@
+// Reads/writes use chrome.storage.local because chrome.storage.sync is
+// auto-replicated by Chrome behind our back, which previously caused two
+// devices to roll each other's writes back. localStorage is mirrored for
+// fast synchronous fallbacks elsewhere in the code.
 function syncGet(key) {
     return new Promise(function (resolve) {
-        chrome.storage.sync.get(key, function (result) {
+        chrome.storage.local.get(key, function (result) {
             if (result[key] !== undefined) {
                 resolve(result[key]);
-            } else {
+                return;
+            }
+            // One-time migration: legacy data may still live in
+            // chrome.storage.sync. Copy it into local on first access.
+            chrome.storage.sync.get(key, function (syncResult) {
+                if (syncResult && syncResult[key] !== undefined) {
+                    var copy = {};
+                    copy[key] = syncResult[key];
+                    chrome.storage.local.set(copy);
+                    resolve(syncResult[key]);
+                    return;
+                }
                 var raw = localStorage.getItem(key);
                 try { resolve(raw ? JSON.parse(raw) : raw); } catch (e) { resolve(raw); }
-            }
+            });
         });
     });
 }
 
 function syncSet(obj) {
     return new Promise(function (resolve) {
-        chrome.storage.sync.set(obj, function () {
+        chrome.storage.local.set(obj, function () {
             for (var k in obj) {
                 if (obj.hasOwnProperty(k)) {
-                    localStorage.setItem(k, JSON.stringify(obj[k]));
+                    try { localStorage.setItem(k, JSON.stringify(obj[k])); } catch (e) {}
                 }
             }
             resolve();

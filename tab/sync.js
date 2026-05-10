@@ -423,8 +423,7 @@ var lastWrittenHash = "";
 // === Auto sync ===
 var autoSyncTimer = null;
 var autoSyncRetries = 0;
-var lastWriteTime = 0;
-var MIN_WRITE_INTERVAL = 15000; // 15s between writes
+var AUTO_SAVE_DEBOUNCE_MS = 2000;   // push 2s after last change (was 5s)
 var pendingChanges = false;
 
 function autoSync() {
@@ -433,25 +432,20 @@ function autoSync() {
     clearTimeout(autoSyncTimer);
     autoSyncTimer = setTimeout(function () {
         doAutoSave();
-    }, 5000); // 5s debounce
+    }, AUTO_SAVE_DEBOUNCE_MS);
 }
 
 async function doAutoSave() {
-    if (syncBusy) return;
-    if (!pendingChanges) return;
-    var now = Date.now();
-    if (now - lastWriteTime < MIN_WRITE_INTERVAL) {
-        // Too soon since last write — reschedule
-        autoSyncTimer = setTimeout(function () {
-            doAutoSave();
-        }, MIN_WRITE_INTERVAL - (now - lastWriteTime) + 1000);
+    if (syncBusy) {
+        // A pull is in flight; retry shortly so we don't drop the change.
+        autoSyncTimer = setTimeout(function () { doAutoSave(); }, 500);
         return;
     }
+    if (!pendingChanges) return;
     syncBusy = true;
     pendingChanges = false;
     try {
         await fbSaveAll();
-        lastWriteTime = Date.now();
         autoSyncRetries = 0;
     } catch (e) {
         autoSyncRetries++;
@@ -459,7 +453,7 @@ async function doAutoSave() {
             setTimeout(function () {
                 syncBusy = false;
                 doAutoSave();
-            }, autoSyncRetries * 5000);
+            }, autoSyncRetries * 3000);
             return;
         }
         autoSyncRetries = 0;
@@ -475,17 +469,41 @@ async function pullFromRemote() {
     syncBusy = false;
 }
 
-// Throttle visibility-driven pulls so refocusing the tab doesn't spam
-// Firestore reads. Initial pull happens via initSync() on page load.
-var VISIBILITY_PULL_INTERVAL = 5 * 60 * 1000; // 5 minutes
-var lastVisibilityPull = 0;
+// Pull on focus (no throttling — visibility changes are user-driven and
+// infrequent). A periodic pull handles the case where the tab stays open.
 document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible" || !getSyncId()) return;
-    var now = Date.now();
-    if (now - lastVisibilityPull < VISIBILITY_PULL_INTERVAL) return;
-    lastVisibilityPull = now;
     pullFromRemote();
 });
+
+// Periodic pull while tab is visible & signed in (every 30s).
+var PERIODIC_PULL_MS = 30000;
+setInterval(function () {
+    if (document.visibilityState === "visible" && getSyncId()) {
+        pullFromRemote();
+    }
+}, PERIODIC_PULL_MS);
+
+// Cross-tab / cross-instance refresh: when chrome.storage.local changes
+// (e.g. another tab in the same browser saved a shortcut, or the
+// extension's background script updated something), let listeners
+// rerender. Debounced so a burst of writes triggers one render.
+var _onChangedTimer = null;
+var _SYNCED_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"];
+if (chrome && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener(function (changes, areaName) {
+        if (areaName !== "local") return;
+        var relevant = false;
+        for (var k in changes) {
+            if (_SYNCED_KEYS.indexOf(k) !== -1) { relevant = true; break; }
+        }
+        if (!relevant) return;
+        clearTimeout(_onChangedTimer);
+        _onChangedTimer = setTimeout(function () {
+            window.dispatchEvent(new CustomEvent("syncdataloaded"));
+        }, 200);
+    });
+}
 
 // === Icon & user ===
 function setSyncIcon(state) {
