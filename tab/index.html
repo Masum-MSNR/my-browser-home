@@ -101,7 +101,8 @@
             <button class="modal-close" id="close-shortcut-dialog">&times;</button>
             <h4 id="shortcut-dialog-title">Add Shortcut</h4>
             <form id="shortcut-form" class="my-form">
-                <input type="url" id="shortcut-url" placeholder="https://example.com" required />
+                <input type="url" id="shortcut-url" placeholder="Synced link (all devices)" required />
+                <input type="url" id="shortcut-local-url" placeholder="Local link on this device only" />
                 <div class="name-input-wrapper">
                     <input type="text" id="shortcut-name" placeholder="Shortcut Name" required />
                     <button type="button" id="sync-name-btn" title="Sync name from URL">⟳</button>
@@ -112,6 +113,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="./runtime.js"></script>
     <script src="./vendor/firebase/firebase-app-compat.js"></script>
     <script src="./vendor/firebase/firebase-auth-compat.js"></script>
     <script src="./vendor/firebase/firebase-firestore-compat.js"></script>

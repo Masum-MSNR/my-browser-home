@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "My Chrome Tab",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "A customizable new tab page for Chrome",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArK7iIkcQ9CeZ2gSKFnnGiAGOCGZjqlxH0LnpUUXOOftfHsN8fjpap1EzTv0rS+LCcYcMET4vxvpbfgb45oQsY2QU4cJID1IWo64P0GRH9gDhoDwShUu3HpVZgo0v9EejFtyynrmA3z/cobVCRH3eMdGlKuCq6gokSzB9ziN360DIZsmtJdskUQ6Zc3TPUDhsEWWXZgjXKuELfsSemrLhbMUsZpHEv4PaOAArTD52cKuJns84JiaLL//m+CrOjASRfmJLtfp2jc8B+xMHQwCncnMVgokQIaYuBX3Lky1TPTJYYi0ZsoNJYi3JIivxRrsLukLRhgiz8O33lMVaDJNIiwIDAQAB",
   "chrome_url_overrides": {

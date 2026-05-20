@@ -2,7 +2,7 @@
 // auto-replicated by Chrome behind our back, which previously caused two
 // devices to roll each other's writes back. localStorage is mirrored for
 // fast synchronous fallbacks elsewhere in the code.
-var SYNC_DATA_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders", "mailShortcuts", "customBg"];
+var SYNC_DATA_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders", "customBg"];
 
 function isAppSyncDataKey(key) {
     return SYNC_DATA_KEYS.indexOf(key) !== -1;

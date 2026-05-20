@@ -1,26 +1,88 @@
 importScripts('../tab/utils.js');
 
+function getTrackedFaviconUrl(url, cb) {
+    if (typeof cb !== "function") return;
+    var normalizedUrl = typeof normalizeFaviconUrl === "function" ? normalizeFaviconUrl(url) : "";
+    if (!normalizedUrl) {
+        cb(null);
+        return;
+    }
+
+    chrome.storage.local.get([
+        "shortcuts",
+        "bookmarks",
+        SHORTCUT_LOCAL_LINKS_STORAGE_KEY,
+        BOOKMARK_LOCAL_LINKS_STORAGE_KEY
+    ], function (result) {
+        var trackedUrls = {};
+        var shortcuts = result && Array.isArray(result.shortcuts) ? result.shortcuts : [];
+        var bookmarks = result && Array.isArray(result.bookmarks) ? result.bookmarks : [];
+        var shortcutLocalLinks = typeof normalizeLocalLinkMap === "function"
+            ? normalizeLocalLinkMap(result && result[SHORTCUT_LOCAL_LINKS_STORAGE_KEY])
+            : {};
+        var bookmarkLocalLinks = typeof normalizeLocalLinkMap === "function"
+            ? normalizeLocalLinkMap(result && result[BOOKMARK_LOCAL_LINKS_STORAGE_KEY])
+            : {};
+
+        function addTrackedUrl(value) {
+            if (!value || typeof normalizeFaviconUrl !== "function") return;
+            var trackedUrl = normalizeFaviconUrl(value);
+            if (trackedUrl) trackedUrls[trackedUrl] = true;
+        }
+
+        function addTrackedUrls(items, localLinks) {
+            for (var i = 0; i < items.length; i++) {
+                if (!items[i]) continue;
+                addTrackedUrl(items[i].url);
+                if (typeof getResolvedItemUrl === "function") {
+                    addTrackedUrl(getResolvedItemUrl(items[i], localLinks));
+                }
+            }
+        }
+
+        addTrackedUrls(shortcuts, shortcutLocalLinks);
+        addTrackedUrls(bookmarks, bookmarkLocalLinks);
+        cb(trackedUrls[normalizedUrl] ? normalizedUrl : null);
+    });
+}
+
 function storeTabFaviconCache(tab) {
-    if (!tab || !tab.url || !tab.favIconUrl) return;
+    if (!tab || !tab.url) return;
     // Only cache for real http(s) pages — skip chrome://, file://, etc.
     if (!/^https?:\/\//i.test(tab.url)) return;
-    var rootDomain = getFullDomain(tab.url);
-    if (!rootDomain) return;
+    getTrackedFaviconUrl(tab.url, function (trackedUrl) {
+        if (!trackedUrl) return;
 
-    chrome.storage.local.get(rootDomain, function (result) {
-        var existing = result && result[rootDomain] && typeof result[rootDomain] === "object" ? result[rootDomain] : {};
-        chrome.storage.local.set({
-            [rootDomain]: Object.assign({}, existing, {
-                url: tab.url,
+        var hasRealFavicon = !!(tab.favIconUrl && (typeof isFallbackFaviconUrl !== "function" || !isFallbackFaviconUrl(tab.favIconUrl)));
+        if (!hasRealFavicon) {
+            if (typeof getStoredFaviconEntry === "function") {
+                getStoredFaviconEntry(trackedUrl).then(function (entry) {
+                    if (!entry && typeof ensureDefaultFaviconEntry === "function") {
+                        ensureDefaultFaviconEntry(trackedUrl);
+                    }
+                });
+            } else if (typeof ensureDefaultFaviconEntry === "function") {
+                ensureDefaultFaviconEntry(trackedUrl);
+            }
+            return;
+        }
+
+        if (typeof mergeStoredFaviconEntry === "function") {
+            mergeStoredFaviconEntry(trackedUrl, {
                 favicon: tab.favIconUrl,
-                title: tab.title || tab.url
-            })
-        });
-    });
+                title: tab.title || tab.url,
+                visitedUrl: trackedUrl,
+                updatedAt: Date.now()
+            });
+        }
 
-    if (typeof primeFaviconCache === "function") {
-        primeFaviconCache(tab.url, tab.favIconUrl, tab.favIconUrl);
-    }
+        if (typeof primeFaviconCache === "function") {
+            var faviconSource = typeof getExtensionFaviconUrl === "function"
+                ? getExtensionFaviconUrl(trackedUrl, 32)
+                : tab.favIconUrl;
+            primeFaviconCache(trackedUrl, faviconSource || tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
+        }
+    });
 }
 
 function maybeStoreUpdatedFavicon(changeInfo, tab) {

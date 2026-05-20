@@ -28,6 +28,20 @@ async function setBookmarks(val) {
     if (typeof markSyncDirty === "function") markSyncDirty("bookmarks");
     if (typeof autoSync === "function") autoSync();
 }
+
+async function getBookmarkLocalLinks() {
+    return typeof readLocalLinkMap === "function" ? await readLocalLinkMap("bookmarks") : {};
+}
+
+async function setBookmarkLocalLink(bookmarkId, url) {
+    if (!bookmarkId || typeof updateLocalLinkValue !== "function") return;
+    await updateLocalLinkValue("bookmarks", bookmarkId, url);
+}
+
+async function clearBookmarkLocalLink(bookmarkId) {
+    if (!bookmarkId || typeof updateLocalLinkValue !== "function") return;
+    await updateLocalLinkValue("bookmarks", bookmarkId, "");
+}
 async function getFolders() {
     if (typeof waitForSyncReady === "function") await waitForSyncReady();
     return (await syncGet("bookmarkFolders")) || [];
@@ -172,6 +186,7 @@ async function deleteBookmarkById(bookmarkId) {
     var now = Date.now();
     addDeletedTombstones([deleted.id], now);
     normalizeScopedItems(all, "folderId", deleted.folderId || null, now);
+    await clearBookmarkLocalLink(deleted.id);
     await setBookmarks(all);
     return true;
 }
@@ -304,12 +319,12 @@ async function getAllBookmarksInFolder(folderId) {
 // === Bar rendering ===
 // Persist a resolved favicon URL onto a bookmark, so it syncs across devices
 // and survives chrome.storage.local cache loss.
-async function persistBookmarkFavicon(bmUrl, realUrl) {
+async function persistBookmarkFavicon(bookmarkId, realUrl) {
     var all = await getBookmarks();
     if (!Array.isArray(all)) return;
     var changed = false;
     for (var i = 0; i < all.length; i++) {
-        if (all[i] && all[i].url === bmUrl && all[i].favicon !== realUrl) {
+        if (all[i] && all[i].id === bookmarkId && all[i].favicon !== realUrl) {
             all[i].favicon = realUrl;
             all[i].updatedAt = Date.now();
             changed = true;
@@ -317,8 +332,41 @@ async function persistBookmarkFavicon(bmUrl, realUrl) {
     }
     if (changed) await setBookmarks(all);
 }
-function bmFaviconCb(bmUrl) {
-    return function (realUrl) { persistBookmarkFavicon(bmUrl, realUrl); };
+
+async function fetchBookmarkFaviconOnSave(bookmarkId) {
+    if (!bookmarkId || typeof requestFaviconCacheRefresh !== "function") return;
+
+    var all = await getBookmarks();
+    if (!Array.isArray(all)) return;
+    var localLinks = await getBookmarkLocalLinks();
+
+    var bookmark = null;
+    for (var i = 0; i < all.length; i++) {
+        if (all[i] && all[i].id === bookmarkId) {
+            bookmark = all[i];
+            break;
+        }
+    }
+    if (!bookmark) return;
+
+    var effectiveUrl = typeof getResolvedItemUrl === "function"
+        ? getResolvedItemUrl(bookmark, localLinks)
+        : bookmark.url;
+    if (!effectiveUrl) return;
+
+    var result = await requestFaviconCacheRefresh(effectiveUrl, bookmark.favicon || null);
+    if (!result) return;
+
+    var nextFavicon = result.realUrl || DEFAULT_FAVICON;
+    if (!nextFavicon || bookmark.favicon === nextFavicon) return;
+
+    bookmark.favicon = nextFavicon;
+    bookmark.updatedAt = Date.now();
+    await setBookmarks(all);
+}
+
+function bmFaviconCb(bookmarkId) {
+    return function (realUrl) { persistBookmarkFavicon(bookmarkId, realUrl); };
 }
 
 async function renderBookmarkBar(options) {
@@ -330,6 +378,7 @@ async function renderBookmarkBar(options) {
     if (!Array.isArray(bookmarks)) bookmarks = [];
     var folders = await readFolders();
     if (!Array.isArray(folders)) folders = [];
+    var localLinks = await getBookmarkLocalLinks();
 
     bookmarkBarItems.innerHTML = "";
 
@@ -367,7 +416,7 @@ async function renderBookmarkBar(options) {
 
     // Root bookmarks
     for (var b = 0; b < rootBookmarks.length; b++) {
-        createBarBookmarkItem(rootBookmarks[b], b);
+        createBarBookmarkItem(rootBookmarks[b], b, localLinks);
     }
 
     // Upgrade bar favicons from cache (and persist for sync)
@@ -376,7 +425,8 @@ async function renderBookmarkBar(options) {
         for (var i = 0; i < imgs.length; i++) {
             var item = imgs[i].closest(".bm-bar-bookmark");
             var url = item ? item.dataset.bmUrl : null;
-            if (url) refreshFaviconFromCache(imgs[i], url, bmFaviconCb(url));
+            var bookmarkId = item ? item.dataset.bmId : null;
+            if (url) refreshFaviconFromCache(imgs[i], url, bookmarkId ? bmFaviconCb(bookmarkId) : null);
         }
     }, 100);
 }
@@ -425,19 +475,23 @@ function createBarFolderItem(folder, idx) {
     bookmarkBarItems.appendChild(item);
 }
 
-function createBarBookmarkItem(bm, idx) {
+function createBarBookmarkItem(bm, idx, localLinks) {
+    var effectiveUrl = typeof getResolvedItemUrl === "function"
+        ? getResolvedItemUrl(bm, localLinks)
+        : bm.url;
     var item = document.createElement("div");
     item.className = "bookmark-bar-item bm-bar-bookmark";
     item.draggable = true;
     item.dataset.bmIdx = idx;
-    item.dataset.bmUrl = bm.url;
+    item.dataset.bmId = bm.id;
+    item.dataset.bmUrl = effectiveUrl || bm.url;
     item.title = bm.name;
 
     var favicon = document.createElement("img");
     favicon.className = "bm-favicon";
     favicon.draggable = false;
     favicon.alt = "";
-    setFaviconWithFallback(favicon, bm.url, bm.favicon);
+    setFaviconWithFallback(favicon, effectiveUrl || bm.url, bm.favicon);
 
     var name = document.createElement("span");
     name.className = "bm-title";
@@ -449,7 +503,7 @@ function createBarBookmarkItem(bm, idx) {
     // Click: open in same tab
     item.addEventListener("click", function (e) {
         if (item.classList.contains("dragging")) return;
-        window.location.href = bm.url;
+        window.location.href = effectiveUrl || bm.url;
     });
 
     // Right-click context menu
@@ -479,6 +533,7 @@ async function renderBarSubmenu(folder, anchor) {
 
     var bookmarks = await getBookmarks();
     var folders = await getFolders();
+    var localLinks = await getBookmarkLocalLinks();
     var fid = folder.id;
 
     var childFolders = [];
@@ -505,7 +560,10 @@ async function renderBarSubmenu(folder, anchor) {
             e.stopPropagation();
             var allBm = await getAllBookmarksInFolder(fid);
             for (var a = 0; a < allBm.length; a++) {
-                window.open(allBm[a].url, "_blank");
+                var nextUrl = typeof getResolvedItemUrl === "function"
+                    ? getResolvedItemUrl(allBm[a], localLinks)
+                    : allBm[a].url;
+                if (nextUrl) window.open(nextUrl, "_blank");
             }
             closeBarSubmenu();
         };
@@ -528,7 +586,7 @@ async function renderBarSubmenu(folder, anchor) {
         }
         // Child bookmarks
         for (var cb = 0; cb < childBookmarks.length; cb++) {
-            var cbItem = createSubmenuBookmarkItem(childBookmarks[cb]);
+            var cbItem = createSubmenuBookmarkItem(childBookmarks[cb], localLinks);
             list.appendChild(cbItem);
         }
     }
@@ -553,7 +611,7 @@ async function renderBarSubmenu(folder, anchor) {
         var subImgs = sub.querySelectorAll(".bm-submenu-bookmark img");
         for (var i = 0; i < subImgs.length; i++) {
             var a = subImgs[i].parentNode;
-            if (a && a.href) refreshFaviconFromCache(subImgs[i], a.href);
+            if (a && a.href) refreshFaviconFromCache(subImgs[i], a.href, a.dataset.bmId ? bmFaviconCb(a.dataset.bmId) : null);
         }
     }, 100);
 }
@@ -570,15 +628,19 @@ function createSubmenuFolderItem(folder, allFolders, allBookmarks, parentId) {
     return item;
 }
 
-function createSubmenuBookmarkItem(bm) {
+function createSubmenuBookmarkItem(bm, localLinks) {
+    var effectiveUrl = typeof getResolvedItemUrl === "function"
+        ? getResolvedItemUrl(bm, localLinks)
+        : bm.url;
     var item = document.createElement("a");
     item.className = "bm-submenu-item bm-submenu-bookmark";
-    item.href = bm.url;
+    item.href = effectiveUrl || bm.url;
+    item.dataset.bmId = bm.id;
     var favicon = document.createElement("img");
     favicon.alt = "";
     favicon.style.width = "14px";
     favicon.style.height = "14px";
-    setFaviconWithFallback(favicon, bm.url, bm.favicon);
+    setFaviconWithFallback(favicon, effectiveUrl || bm.url, bm.favicon);
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
     return item;
@@ -587,6 +649,7 @@ function createSubmenuBookmarkItem(bm) {
 async function renderNestedSubmenu(folder, anchor) {
     var bookmarks = await getBookmarks();
     var folders = await getFolders();
+    var localLinks = await getBookmarkLocalLinks();
     var fid = folder.id;
 
     var childFolders = [];
@@ -637,14 +700,14 @@ async function renderNestedSubmenu(folder, anchor) {
         list.appendChild(createSubmenuFolderItem(childFolders[cf], folders, bookmarks, fid));
     }
     for (var cb = 0; cb < childBookmarks.length; cb++) {
-        list.appendChild(createSubmenuBookmarkItem(childBookmarks[cb]));
+        list.appendChild(createSubmenuBookmarkItem(childBookmarks[cb], localLinks));
     }
     sub.appendChild(list);
     setTimeout(function () {
         var subImgs = sub.querySelectorAll(".bm-submenu-bookmark img");
         for (var i = 0; i < subImgs.length; i++) {
             var a = subImgs[i].parentNode;
-            if (a && a.href) refreshFaviconFromCache(subImgs[i], a.href);
+            if (a && a.href) refreshFaviconFromCache(subImgs[i], a.href, a.dataset.bmId ? bmFaviconCb(a.dataset.bmId) : null);
         }
     }, 100);
 }
@@ -664,8 +727,12 @@ function showFolderContextMenu(e, folder) {
 
     menu.querySelector('[data-action="openall"]').onclick = async function () {
         var allBm = await getAllBookmarksInFolder(folder.id);
+        var localLinks = await getBookmarkLocalLinks();
         for (var a = 0; a < allBm.length; a++) {
-            window.open(allBm[a].url, "_blank");
+            var nextUrl = typeof getResolvedItemUrl === "function"
+                ? getResolvedItemUrl(allBm[a], localLinks)
+                : allBm[a].url;
+            if (nextUrl) window.open(nextUrl, "_blank");
         }
         removeContextMenu();
     };
@@ -989,7 +1056,8 @@ async function renderBookmarkDropdown() {
         '      <button type="submit" class="bm-folder-add-btn">Create</button>' +
         '    </form>' +
         '    <form id="bookmark-add-form" class="bookmark-add-form">' +
-        '      <input type="url" id="bm-url-input" placeholder="https://example.com" required />' +
+        '      <input type="url" id="bm-url-input" placeholder="Synced link (all devices)" required />' +
+        '      <input type="url" id="bm-local-url-input" placeholder="Local link on this device only" />' +
         '      <input type="text" id="bm-name-input" placeholder="Name" required />' +
         '      <div class="bm-form-row">' +
         '        <button type="submit" class="bm-add-btn" id="bm-submit-btn">Add Bookmark</button>' +
@@ -1026,7 +1094,7 @@ async function renderBookmarkDropdown() {
     setTimeout(function () {
         var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
         for (var i = 0; i < dlItems.length; i++) {
-            if (dlItems[i].dataset.bmUrl) refreshFaviconFromCache(dlItems[i], dlItems[i].dataset.bmUrl, bmFaviconCb(dlItems[i].dataset.bmUrl));
+            if (dlItems[i].dataset.bmUrl) refreshFaviconFromCache(dlItems[i], dlItems[i].dataset.bmUrl);
         }
     }, 100);
 }
@@ -1065,6 +1133,7 @@ function wireAddForms() {
     var bmForm = document.getElementById("bookmark-add-form");
     if (!bmForm) return;
     var urlInput = document.getElementById("bm-url-input");
+    var localUrlInput = document.getElementById("bm-local-url-input");
     var nameInput = document.getElementById("bm-name-input");
     var submitBtn = document.getElementById("bm-submit-btn");
 
@@ -1080,11 +1149,14 @@ function wireAddForms() {
     });
 
     if (editingBookmarkId !== null) {
-        getBookmarks().then(function (all) {
+        Promise.all([getBookmarks(), getBookmarkLocalLinks()]).then(function (values) {
+            var all = values[0];
+            var localLinks = values[1];
             if (!Array.isArray(all)) return;
             for (var i = 0; i < all.length; i++) {
                 if (all[i] && all[i].id === editingBookmarkId) {
                     urlInput.value = all[i].url;
+                    if (localUrlInput) localUrlInput.value = typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, all[i].id) : "";
                     nameInput.value = all[i].name;
                     nameInput.dataset.manualEdit = "true";
                     submitBtn.textContent = "Save";
@@ -1098,11 +1170,15 @@ function wireAddForms() {
         e.preventDefault();
         var name = nameInput.value.trim();
         var url = urlInput.value.trim();
+        var localUrl = localUrlInput ? localUrlInput.value.trim() : "";
         if (!name || !url) return;
         var all = await getBookmarks();
+        var localLinks = await getBookmarkLocalLinks();
         if (!Array.isArray(all)) all = [];
         var parentId = getCurrentParentId();
         var now = Date.now();
+        var savedBookmarkId = null;
+        var shouldFetchFavicon = false;
         if (editingBookmarkId !== null) {
             var existing = null;
             for (var i = 0; i < all.length; i++) {
@@ -1116,23 +1192,34 @@ function wireAddForms() {
                 return;
             }
             var oldParentId = existing.folderId || null;
+            var previousUrl = existing.url;
+            var previousEffectiveUrl = (typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, existing.id) : "") || previousUrl;
+            var nextEffectiveUrl = localUrl || url;
             existing.name = name;
             existing.url = url;
+            if (previousUrl !== url) delete existing.favicon;
             existing.updatedAt = now;
+            savedBookmarkId = existing.id;
+            shouldFetchFavicon = previousEffectiveUrl !== nextEffectiveUrl || !existing.favicon;
             if ((existing.folderId || null) !== parentId) {
                 existing.folderId = parentId;
                 existing.position = getNextScopedPosition(all, "folderId", parentId);
                 normalizeScopedItems(all, "folderId", [oldParentId, parentId], now);
             }
         } else {
-            all.push({
+            var createdBookmark = {
                 id: crypto.randomUUID(), name: name, url: url,
                 folderId: parentId,
                 position: getNextScopedPosition(all, "folderId", parentId),
                 updatedAt: now
-            });
+            };
+            savedBookmarkId = createdBookmark.id;
+            shouldFetchFavicon = true;
+            all.push(createdBookmark);
         }
         await setBookmarks(all);
+        if (savedBookmarkId) await setBookmarkLocalLink(savedBookmarkId, localUrl);
+        if (shouldFetchFavicon) await fetchBookmarkFaviconOnSave(savedBookmarkId);
         await renderBookmarkBar();
         showAddForms = false;
         editingBookmarkId = null;
@@ -1149,6 +1236,7 @@ async function renderBookmarkList() {
     if (!Array.isArray(folders)) folders = [];
     var all = await getBookmarks();
     if (!Array.isArray(all)) all = [];
+    var localLinks = await getBookmarkLocalLinks();
     var parentId = getCurrentParentId();
 
     var levelFolders = [];
@@ -1180,7 +1268,7 @@ async function renderBookmarkList() {
         list.appendChild(sep);
     }
     for (var b = 0; b < levelBookmarks.length; b++) {
-        list.appendChild(createBookmarkItem(levelBookmarks[b], b));
+        list.appendChild(createBookmarkItem(levelBookmarks[b], b, localLinks));
     }
 }
 
@@ -1212,16 +1300,21 @@ function createFolderItem(folder, idx) {
     return item;
 }
 
-function createBookmarkItem(bm, idx) {
+function createBookmarkItem(bm, idx, localLinks) {
+    var effectiveUrl = typeof getResolvedItemUrl === "function"
+        ? getResolvedItemUrl(bm, localLinks)
+        : bm.url;
     var item = document.createElement("div");
     item.className = "bookmark-dropdown-item";
     item.draggable = true;
+    item.dataset.bmId = bm.id;
 
     var favicon = document.createElement("img");
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
-    favicon.dataset.bmUrl = bm.url;
-    setFaviconWithFallback(favicon, bm.url, bm.favicon);
+    favicon.dataset.bmId = bm.id;
+    favicon.dataset.bmUrl = effectiveUrl || bm.url;
+    setFaviconWithFallback(favicon, effectiveUrl || bm.url, bm.favicon);
 
     var name = document.createElement("span");
     name.className = "bm-dl-name";
@@ -1233,7 +1326,7 @@ function createBookmarkItem(bm, idx) {
     // Click bookmark → close dialog, open in same tab
     item.addEventListener("click", function () {
         closeBookmarkDropdown();
-        window.location.href = bm.url;
+        window.location.href = effectiveUrl || bm.url;
     });
 
     var editBtn = document.createElement("button");
@@ -1381,37 +1474,52 @@ function refreshAllFaviconsFromCache() {
     for (var i = 0; i < barItems.length; i++) {
         var url = barItems[i].dataset.bmUrl;
         var img = barItems[i].querySelector(".bm-favicon");
-        if (url && img) refreshFaviconFromCache(img, url, bmFaviconCb(url));
+        var bookmarkId = barItems[i].dataset.bmId;
+        if (url && img) refreshFaviconFromCache(img, url, bookmarkId ? bmFaviconCb(bookmarkId) : null);
     }
     // Dialog dropdown (if open)
     var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
     for (var j = 0; j < dlItems.length; j++) {
-        if (dlItems[j].dataset.bmUrl) refreshFaviconFromCache(dlItems[j], dlItems[j].dataset.bmUrl, bmFaviconCb(dlItems[j].dataset.bmUrl));
+        if (dlItems[j].dataset.bmUrl) {
+            refreshFaviconFromCache(dlItems[j], dlItems[j].dataset.bmUrl, dlItems[j].dataset.bmId ? bmFaviconCb(dlItems[j].dataset.bmId) : null);
+        }
     }
     // Submenu (if open)
-    var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark img");
+    var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark");
     for (var k = 0; k < subItems.length; k++) {
-        var a = subItems[k].parentNode;
-        if (a && a.href) refreshFaviconFromCache(subItems[k], a.href, bmFaviconCb(a.href));
+        var subImg = subItems[k].querySelector("img");
+        if (subImg && subItems[k].href) {
+            refreshFaviconFromCache(subImg, subItems[k].href, subItems[k].dataset.bmId ? bmFaviconCb(subItems[k].dataset.bmId) : null);
+        }
     }
 }
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
     if (areaName !== "local") return;
-    var updatedDomain = null;
+    if (typeof BOOKMARK_LOCAL_LINKS_STORAGE_KEY !== "undefined" && changes[BOOKMARK_LOCAL_LINKS_STORAGE_KEY]) {
+        (async function () {
+            await renderBookmarkBar();
+            if (bookmarkDropdown.classList.contains("open")) renderBookmarkDropdown();
+            refreshAllFaviconsFromCache();
+        })();
+        return;
+    }
+    var updatedKey = null;
     for (var key in changes) {
+        if (!changes.hasOwnProperty(key)) continue;
+        if (typeof isFaviconCacheStorageKey === "function" && !isFaviconCacheStorageKey(key)) continue;
         if (changes[key].newValue && (changes[key].newValue.favicon || changes[key].newValue.faviconDataUrl)) {
-            updatedDomain = key; break;
+            updatedKey = key; break;
         }
     }
-    if (!updatedDomain) return;
+    if (!updatedKey) return;
     // Refresh on top bar
     var barItems = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
     for (var i = 0; i < barItems.length; i++) {
         var url = barItems[i].dataset.bmUrl;
-        if (url && url.indexOf(updatedDomain) !== -1) {
+        if (url && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(url) === updatedKey) {
             var img = barItems[i].querySelector(".bm-favicon");
-            if (img) refreshFaviconFromCache(img, url, bmFaviconCb(url));
+            if (img) refreshFaviconFromCache(img, url, barItems[i].dataset.bmId ? bmFaviconCb(barItems[i].dataset.bmId) : null);
         }
     }
     // Refresh in dialog dropdown (if open)
@@ -1419,13 +1527,17 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
     for (var j = 0; j < dlItems.length; j++) {
         var dlImg = dlItems[j].querySelector(".bm-dl-favicon");
         var dlUrl = dlImg ? (dlImg.dataset.bmUrl || "") : "";
-        if (dlImg && dlUrl) refreshFaviconFromCache(dlImg, dlUrl, bmFaviconCb(dlUrl));
+        if (dlImg && dlUrl && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(dlUrl) === updatedKey) {
+            refreshFaviconFromCache(dlImg, dlUrl, dlImg.dataset.bmId ? bmFaviconCb(dlImg.dataset.bmId) : null);
+        }
     }
     // Refresh in submenu (if open)
     var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark");
     for (var k = 0; k < subItems.length; k++) {
         var subImg = subItems[k].querySelector("img");
-        if (subImg) refreshFaviconFromCache(subImg, subItems[k].href, bmFaviconCb(subItems[k].href));
+        if (subImg && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(subItems[k].href) === updatedKey) {
+            refreshFaviconFromCache(subImg, subItems[k].href, subItems[k].dataset.bmId ? bmFaviconCb(subItems[k].dataset.bmId) : null);
+        }
     }
 });
 

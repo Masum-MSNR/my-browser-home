@@ -2,6 +2,7 @@ const mailDropdownBtn = document.getElementById("mail-dropdown-btn");
 const mailDropdown = document.getElementById("mail-dropdown");
 const mailDropdownList = document.getElementById("mail-dropdown-list");
 const mailDropdownHeader = document.querySelector(".mail-dropdown-header");
+const MAIL_STORAGE_KEY = "mailShortcuts";
 
 function closeDropdown() {
     mailDropdown.classList.remove("open");
@@ -29,13 +30,31 @@ document.addEventListener("keydown", (e) => {
 });
 
 async function getMailShortcuts() {
-    return await syncGet("mailShortcuts") || [];
+    return await new Promise(function (resolve) {
+        chrome.storage.local.get(MAIL_STORAGE_KEY, function (result) {
+            if (result && result[MAIL_STORAGE_KEY] !== undefined) {
+                resolve(result[MAIL_STORAGE_KEY]);
+                return;
+            }
+            try {
+                var raw = localStorage.getItem(MAIL_STORAGE_KEY);
+                resolve(raw ? JSON.parse(raw) : []);
+            } catch (e) {
+                resolve([]);
+            }
+        });
+    }) || [];
 }
 
 async function setMailShortcuts(val) {
-    await syncSet({ mailShortcuts: val });
-    if (typeof markSyncDirty === "function") markSyncDirty("mailShortcuts");
-    if (typeof autoSync === "function") autoSync();
+    await new Promise(function (resolve) {
+        var next = {};
+        next[MAIL_STORAGE_KEY] = val;
+        chrome.storage.local.set(next, function () {
+            try { localStorage.setItem(MAIL_STORAGE_KEY, JSON.stringify(val)); } catch (e) {}
+            resolve();
+        });
+    });
 }
 
 async function renderMailList() {

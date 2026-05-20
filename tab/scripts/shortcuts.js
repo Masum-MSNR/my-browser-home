@@ -3,6 +3,7 @@ const shortcutDialog = document.getElementById("shortcut-dialog");
 const shortcutForm = document.getElementById("shortcut-form");
 const shortcutNameInput = document.getElementById("shortcut-name");
 const shortcutUrlInput = document.getElementById("shortcut-url");
+const shortcutLocalUrlInput = document.getElementById("shortcut-local-url");
 const shortcutTitle = document.getElementById("shortcut-dialog-title");
 const closeShortcutDialog = document.getElementById("close-shortcut-dialog");
 const syncNameBtn = document.getElementById("sync-name-btn");
@@ -24,19 +25,71 @@ async function setShortcuts(val) {
   if (typeof autoSync === "function") autoSync();
 }
 
+async function getShortcutLocalLinks() {
+  return typeof readLocalLinkMap === "function" ? await readLocalLinkMap("shortcuts") : {};
+}
+
+async function setShortcutLocalLink(shortcutId, url) {
+  if (!shortcutId || typeof updateLocalLinkValue !== "function") return;
+  await updateLocalLinkValue("shortcuts", shortcutId, url);
+}
+
+async function clearShortcutLocalLink(shortcutId) {
+  if (!shortcutId || typeof updateLocalLinkValue !== "function") return;
+  await updateLocalLinkValue("shortcuts", shortcutId, "");
+}
+
+async function fetchShortcutFaviconOnSave(shortcutId) {
+  if (!shortcutId || typeof requestFaviconCacheRefresh !== "function") return;
+
+  var all = await getShortcuts();
+  if (!Array.isArray(all)) return;
+  var localLinks = await getShortcutLocalLinks();
+
+  var shortcut = null;
+  for (var i = 0; i < all.length; i++) {
+    if (all[i] && all[i].id === shortcutId) {
+      shortcut = all[i];
+      break;
+    }
+  }
+  if (!shortcut) return;
+
+  var effectiveUrl = typeof getResolvedItemUrl === "function"
+    ? getResolvedItemUrl(shortcut, localLinks)
+    : shortcut.url;
+  if (!effectiveUrl) return;
+
+  var result = await requestFaviconCacheRefresh(effectiveUrl, shortcut.favicon || null);
+  if (!result) return;
+
+  var nextFavicon = result.realUrl || DEFAULT_FAVICON;
+  if (!nextFavicon || shortcut.favicon === nextFavicon) return;
+
+  shortcut.favicon = nextFavicon;
+  shortcut.updatedAt = Date.now();
+  await setShortcuts(all);
+}
+
 async function renderShortcuts() {
   shortcutList.innerHTML = "";
   var shortcuts = await getShortcuts();
+  var localLinks = await getShortcutLocalLinks();
   if (!Array.isArray(shortcuts)) shortcuts = [];
   shortcuts = shortcuts.filter(function (s) { return s && s.url; });
 
   for (const [index, shortcut] of shortcuts.entries()) {
+    const effectiveUrl = typeof getResolvedItemUrl === "function"
+      ? getResolvedItemUrl(shortcut, localLinks)
+      : shortcut.url;
+
     const div = document.createElement("div");
     div.className = "shortcut-item";
     div.draggable = true;
 
     const link = document.createElement("a");
-    link.href = shortcut.url;
+    link.href = effectiveUrl || shortcut.url;
+    link.dataset.shortcutId = shortcut.id;
     link.draggable = false;
 
     const iconWrap = document.createElement("div");
@@ -46,7 +99,7 @@ async function renderShortcuts() {
     img.className = "shortcut-icon";
     img.alt = "";
     img.draggable = false;
-    setFaviconWithFallback(img, shortcut.url, shortcut.favicon);
+    setFaviconWithFallback(img, effectiveUrl || shortcut.url, shortcut.favicon);
     iconWrap.appendChild(img);
 
     const label = document.createElement("div");
@@ -77,6 +130,7 @@ async function renderShortcuts() {
     menu.querySelector(".edit-btn").onclick = () => {
       shortcutNameInput.value = shortcut.name;
       shortcutUrlInput.value = shortcut.url;
+      if (shortcutLocalUrlInput) shortcutLocalUrlInput.value = typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, shortcut.id) : "";
       shortcutTitle.textContent = "Edit Shortcut";
       editingShortcut = shortcut.id;
       shortcutDialog.style.display = "flex";
@@ -109,6 +163,7 @@ async function renderShortcuts() {
         return;
       }
       await setShortcuts(all);
+      await clearShortcutLocalLink(deleted.id);
       renderShortcuts();
     };
 
@@ -253,6 +308,7 @@ function addAddShortcutButton() {
     shortcutTitle.textContent = "Add Shortcut";
     shortcutDialog.style.display = "flex";
     shortcutNameInput.dataset.manualEdit = "";
+    if (shortcutLocalUrlInput) shortcutLocalUrlInput.value = "";
     syncNameBtn.style.display = "none";
   });
 
@@ -269,11 +325,15 @@ shortcutForm.onsubmit = async (e) => {
   e.preventDefault();
   const name = shortcutNameInput.value.trim();
   const url = shortcutUrlInput.value.trim();
+  const localUrl = shortcutLocalUrlInput ? shortcutLocalUrlInput.value.trim() : "";
   if (!name || !url) return;
 
   var shortcuts = await getShortcuts();
+  var localLinks = await getShortcutLocalLinks();
   if (!Array.isArray(shortcuts)) shortcuts = [];
   shortcuts = shortcuts.filter(function (s) { return s && s.url; });
+  var savedShortcutId = null;
+  var shouldFetchFavicon = false;
 
   if (editingShortcut !== null) {
     var existingShortcut = null;
@@ -287,16 +347,31 @@ shortcutForm.onsubmit = async (e) => {
       editingShortcut = null;
       return;
     }
+    var previousUrl = existingShortcut.url;
+    var previousEffectiveUrl = (typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, existingShortcut.id) : "") || previousUrl;
+    var nextEffectiveUrl = localUrl || url;
     existingShortcut.name = name;
     existingShortcut.url = url;
+    if (previousUrl !== url) delete existingShortcut.favicon;
     existingShortcut.updatedAt = Date.now();
+    savedShortcutId = existingShortcut.id;
+    shouldFetchFavicon = previousEffectiveUrl !== nextEffectiveUrl || !existingShortcut.favicon;
   } else {
-    shortcuts.push({
+    var createdShortcut = {
       id: crypto.randomUUID(),
       name: name,
       url: url,
       position: shortcuts.length,
       updatedAt: Date.now()
+    };
+    savedShortcutId = createdShortcut.id;
+    shouldFetchFavicon = true;
+    shortcuts.push({
+      id: createdShortcut.id,
+      name: createdShortcut.name,
+      url: createdShortcut.url,
+      position: createdShortcut.position,
+      updatedAt: createdShortcut.updatedAt
     });
   }
 
@@ -306,8 +381,11 @@ shortcutForm.onsubmit = async (e) => {
   }
 
   await setShortcuts(shortcuts);
-  renderShortcuts();
+  if (savedShortcutId) await setShortcutLocalLink(savedShortcutId, localUrl);
+  if (shouldFetchFavicon) await fetchShortcutFaviconOnSave(savedShortcutId);
+  await renderShortcuts();
   shortcutForm.reset();
+  if (shortcutLocalUrlInput) shortcutLocalUrlInput.value = "";
   shortcutDialog.style.display = "none";
   editingShortcut = null;
   syncNameBtn.style.display = "none";
@@ -360,12 +438,12 @@ window.addEventListener("syncdataloaded", async function () {
 // === Live favicon refresh for shortcuts ===
 // Persists the resolved favicon URL into the shortcut data so it syncs
 // across devices and survives chrome.storage.local cache loss.
-async function persistShortcutFavicon(href, realUrl) {
+async function persistShortcutFavicon(shortcutId, realUrl) {
     var all = await getShortcuts();
     if (!Array.isArray(all)) return;
     var changed = false;
     for (var i = 0; i < all.length; i++) {
-        if (all[i] && all[i].url === href && all[i].favicon !== realUrl) {
+    if (all[i] && all[i].id === shortcutId && all[i].favicon !== realUrl) {
             all[i].favicon = realUrl;
             all[i].updatedAt = Date.now();
             changed = true;
@@ -380,35 +458,38 @@ function refreshShortcutFavicons() {
         var img = items[i].querySelector(".shortcut-icon");
         var href = items[i].getAttribute("href");
         if (img && href) {
-            (function (im, hr) {
-                refreshFaviconFromCache(im, hr, function (realUrl) {
-                    persistShortcutFavicon(hr, realUrl);
-                });
-            })(img, href);
+      refreshFaviconFromCache(img, href);
         }
     }
 }
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
     if (areaName !== "local") return;
-    var updatedDomain = null;
+  if (typeof SHORTCUT_LOCAL_LINKS_STORAGE_KEY !== "undefined" && changes[SHORTCUT_LOCAL_LINKS_STORAGE_KEY]) {
+    renderShortcuts().then(refreshShortcutFavicons);
+    return;
+  }
+  var updatedKey = null;
     for (var key in changes) {
+    if (!changes.hasOwnProperty(key)) continue;
+    if (typeof isFaviconCacheStorageKey === "function" && !isFaviconCacheStorageKey(key)) continue;
     if (changes[key].newValue && (changes[key].newValue.favicon || changes[key].newValue.faviconDataUrl)) {
-            updatedDomain = key; break;
+      updatedKey = key; break;
         }
     }
-    if (!updatedDomain) return;
+  if (!updatedKey) return;
     var items = shortcutList.querySelectorAll(".shortcut-item a");
     for (var i = 0; i < items.length; i++) {
         var href = items[i].getAttribute("href");
-        if (href && href.indexOf(updatedDomain) !== -1) {
+    if (href && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(href) === updatedKey) {
             var img = items[i].querySelector(".shortcut-icon");
+        var shortcutId = items[i].dataset.shortcutId || "";
             if (img) {
-                (function (im, hr) {
+          (function (im, hr, id) {
                     refreshFaviconFromCache(im, hr, function (realUrl) {
-                        persistShortcutFavicon(hr, realUrl);
+              persistShortcutFavicon(id, realUrl);
                     });
-                })(img, href);
+          })(img, href, shortcutId);
             }
         }
     }

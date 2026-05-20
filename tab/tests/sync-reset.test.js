@@ -7,7 +7,6 @@ function createSyncContext(options) {
         shortcuts: [{ id: 'local-shortcut', url: 'https://old-shortcut.test', name: 'old shortcut', position: 0, updatedAt: 1000 }],
         bookmarks: [{ id: 'local-bookmark', url: 'https://old-bookmark.test', name: 'old bookmark', folderId: null, position: 0, updatedAt: 1000 }],
         bookmarkFolders: [{ id: 'local-folder', name: 'old folder', parentId: null, position: 0, updatedAt: 1000 }],
-        mailShortcuts: [],
         customBg: 'local-bg'
     };
     const localStorageData = {
@@ -18,7 +17,6 @@ function createSyncContext(options) {
         shortcuts: [{ id: 'remote-shortcut', url: 'https://remote-shortcut.test', name: 'remote shortcut', position: 0, updatedAt: 5000 }],
         bookmarks: [{ id: 'remote-bookmark', url: 'https://remote-bookmark.test', name: 'remote bookmark', folderId: null, position: 0, updatedAt: 5000 }],
         bookmarkFolders: [{ id: 'remote-folder', name: 'remote folder', parentId: null, position: 0, updatedAt: 5000 }],
-        mailShortcuts: [],
         customBg: 'remote-bg',
         _deleted: {}
     };
@@ -169,7 +167,6 @@ function assert(label, condition) {
             { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 0, updatedAt: 2000 }
         ],
         bookmarkFolders: [],
-        mailShortcuts: [],
         customBg: null
     });
     reorderSave.context.currentUser = { uid: 'u1', email: 'u@test.local', token: 'token' };
@@ -182,7 +179,6 @@ function assert(label, condition) {
                 { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 1, updatedAt: 1000 }
             ],
             bookmarkFolders: [],
-            mailShortcuts: [],
             customBg: null,
             _deleted: {},
             _syncMeta: { rev: 10 }
@@ -201,7 +197,6 @@ function assert(label, condition) {
             { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 0, updatedAt: 2000 }
         ],
         bookmarkFolders: [],
-        mailShortcuts: [],
         customBg: null
     });
     const staleRemoteDoc = {
@@ -211,7 +206,6 @@ function assert(label, condition) {
             { id: 'b', url: 'https://b.test', name: 'B', folderId: null, position: 1, updatedAt: 1000 }
         ],
         bookmarkFolders: [],
-        mailShortcuts: [],
         customBg: null,
         _deleted: {},
         _syncMeta: { rev: 10 }
