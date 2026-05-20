@@ -63,19 +63,40 @@ async function renderMailList() {
     mails.forEach(function (m, idx) { addMailItem(m, idx); });
 }
 
-function createServiceLink(href, title, iconUrl) {
+function createServiceLink(href, title, iconClass) {
     const link = document.createElement("a");
     link.className = "service-link";
     link.href = href;
     link.title = title;
     link.target = "_blank";
 
-    const img = document.createElement("img");
-    img.src = iconUrl;
-    img.alt = title;
-
-    link.appendChild(img);
+    const icon = document.createElement("i");
+    icon.className = iconClass;
+    icon.setAttribute("aria-hidden", "true");
+    link.appendChild(icon);
     return link;
+}
+
+function createAccountAvatar(name, email, image) {
+    var trimmedImage = typeof image === "string" ? image.trim() : "";
+    if (trimmedImage && (trimmedImage.indexOf("data:") === 0 || trimmedImage.indexOf("blob:") === 0 || trimmedImage.indexOf("chrome-extension://") === 0 || trimmedImage.indexOf("/") === 0)) {
+        const avatar = document.createElement("img");
+        avatar.className = "account-avatar account-avatar-image";
+        avatar.src = trimmedImage;
+        avatar.alt = name;
+        return avatar;
+    }
+
+    const fallback = document.createElement("div");
+    fallback.className = "account-avatar account-avatar-fallback";
+    var source = (name || email || "?").trim();
+    var parts = source.split(/\s+/).filter(Boolean);
+    var initials = parts.length > 1
+        ? (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
+        : source.slice(0, 2).toUpperCase();
+    fallback.textContent = initials || "?";
+    fallback.setAttribute("aria-label", name || email || "Mail account");
+    return fallback;
 }
 
 function addMailItem({ email, name, image }, idx) {
@@ -85,10 +106,7 @@ function addMailItem({ email, name, image }, idx) {
     li.dataset.email = email;
     li.dataset.idx = idx;
 
-    const avatar = document.createElement("img");
-    avatar.className = "account-avatar";
-    avatar.src = image;
-    avatar.alt = name;
+    const avatar = createAccountAvatar(name, email, image);
 
     const info = document.createElement("div");
     info.className = "account-info";
@@ -106,11 +124,11 @@ function addMailItem({ email, name, image }, idx) {
 
     const prefix = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=`;
 
-    services.appendChild(createServiceLink(prefix + "https://mail.google.com", "Gmail", "https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico"));
-    services.appendChild(createServiceLink(prefix + "https://drive.google.com/drive/my-drive", "Drive", "https://ssl.gstatic.com/docs/doclist/images/drive_icon_32.png"));
-    services.appendChild(createServiceLink(prefix + "https://meet.google.com", "Meet", "https://www.gstatic.com/images/branding/product/2x/hh_meet_48dp.png"));
-    services.appendChild(createServiceLink(prefix + "https://docs.google.com/document/u/0/", "Docs", "https://ssl.gstatic.com/docs/doclist/images/icon_10_document_list.png"));
-    services.appendChild(createServiceLink(prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets", "https://ssl.gstatic.com/docs/doclist/images/icon_10_spreadsheet_list.png"));
+    services.appendChild(createServiceLink(prefix + "https://mail.google.com", "Gmail", "fas fa-envelope"));
+    services.appendChild(createServiceLink(prefix + "https://drive.google.com/drive/my-drive", "Drive", "fab fa-google-drive"));
+    services.appendChild(createServiceLink(prefix + "https://meet.google.com", "Meet", "fas fa-video"));
+    services.appendChild(createServiceLink(prefix + "https://docs.google.com/document/u/0/", "Docs", "fas fa-file-alt"));
+    services.appendChild(createServiceLink(prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets", "fas fa-table"));
 
     const cloudLink = document.createElement("a");
     cloudLink.className = "service-link";

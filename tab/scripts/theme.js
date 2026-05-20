@@ -25,6 +25,66 @@ var THEME_CACHE_KEY = "themeCache";
 var cachedTheme = null;
 var activeThemeUrl = null;
 
+function getThemeByUrl(url) {
+  for (var i = 0; i < themes.length; i++) {
+    if (themes[i] && themes[i].url === url) return themes[i];
+  }
+  return null;
+}
+
+function createThemePlaceholder(theme) {
+  var label = theme && theme.name ? theme.name : "Theme";
+  var seed = 0;
+  for (var i = 0; i < label.length; i++) {
+    seed = (seed * 31 + label.charCodeAt(i)) % 360;
+  }
+  var hueA = seed;
+  var hueB = (seed + 64) % 360;
+  var svg = '' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">' +
+    '<defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">' +
+    '<stop offset="0%" stop-color="hsl(' + hueA + ', 65%, 44%)"/>' +
+    '<stop offset="100%" stop-color="hsl(' + hueB + ', 70%, 22%)"/>' +
+    '</linearGradient></defs>' +
+    '<rect width="640" height="360" fill="url(#g)"/>' +
+    '<circle cx="510" cy="88" r="88" fill="rgba(255,255,255,0.14)"/>' +
+    '<circle cx="122" cy="298" r="108" fill="rgba(255,255,255,0.08)"/>' +
+    '<text x="32" y="316" fill="rgba(255,255,255,0.92)" font-size="34" font-family="system-ui, sans-serif" font-weight="700">' + label + '</text>' +
+    '</svg>';
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
+function getThemePreviewUrl(url) {
+  if (cachedTheme && cachedTheme.url === url && cachedTheme.dataUrl) {
+    return cachedTheme.dataUrl;
+  }
+  return createThemePlaceholder(getThemeByUrl(url));
+}
+
+function reportThemeIssue(url, message) {
+  if (typeof reportHandledIssue === "function") {
+    reportHandledIssue("theme-image", message, { url: url });
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () { resolve(reader.result); };
+    reader.onerror = function () { reject(new Error("Failed to read theme blob")); };
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImageFromUrl(url) {
+  return new Promise(function (resolve, reject) {
+    var img = new Image();
+    img.onload = function () { resolve(img); };
+    img.onerror = function () { reject(new Error("Failed to load theme image")); };
+    img.src = url;
+  });
+}
+
 async function preloadCache() {
   var result = await chrome.storage.local.get(THEME_CACHE_KEY);
   cachedTheme = result[THEME_CACHE_KEY] || null;
@@ -67,21 +127,23 @@ function analyzeImage(img) {
 }
 
 async function downloadAndCache(url) {
-  var img = new Image();
-  img.crossOrigin = "anonymous";
-  return new Promise(function (resolve, reject) {
-    img.onload = function () {
-      var result = analyzeImage(img);
-      var dataUrl = result.canvas.toDataURL("image/jpeg", 0.85);
-      cachedTheme = { url: url, dataUrl: dataUrl, brightness: result.brightness };
-      chrome.storage.local.set({
-        [THEME_CACHE_KEY]: cachedTheme
-      }).catch(function () {});
-      resolve({ dataUrl: dataUrl, brightness: result.brightness });
-    };
-    img.onerror = function () { reject(new Error("Failed to load image")); };
-    img.src = url;
-  });
+  var response = await fetch(url, { cache: "force-cache" });
+  if (!response.ok) throw new Error("Failed to download theme image");
+
+  var blob = await response.blob();
+  var objectUrl = URL.createObjectURL(blob);
+  try {
+    var img = await loadImageFromUrl(objectUrl);
+    var result = analyzeImage(img);
+    var dataUrl = await blobToDataUrl(blob);
+    cachedTheme = { url: url, dataUrl: dataUrl, brightness: result.brightness };
+    chrome.storage.local.set({
+      [THEME_CACHE_KEY]: cachedTheme
+    }).catch(function () {});
+    return { dataUrl: dataUrl, brightness: result.brightness };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 async function applyTheme(url, options) {
@@ -98,20 +160,17 @@ async function applyTheme(url, options) {
     setBodyBackground(cachedTheme.dataUrl);
     applyBrightnessClass(cachedTheme.brightness);
   } else {
-    // No cache: paint remote URL for first frame, then download
-    setBodyBackground(url);
+    setBodyBackground(getThemePreviewUrl(url));
 
     try {
       var result = await downloadAndCache(url);
       setBodyBackground(result.dataUrl);
       applyBrightnessClass(result.brightness);
+      renderThemeOptions();
     } catch (e) {
-      var img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = function () {
-        applyBrightnessClass(analyzeImage(img).brightness);
-      };
-      img.src = url;
+      reportThemeIssue(url, "Theme image unavailable");
+      document.body.classList.add("dark-text");
+      document.body.classList.remove("light-text");
     }
   }
 
@@ -132,7 +191,7 @@ function renderThemeOptions() {
   container.innerHTML = '';
   themes.forEach(function (theme) {
     var img = document.createElement("img");
-    img.src = theme.url;
+    img.src = getThemePreviewUrl(theme.url);
     img.alt = theme.name;
     img.className = "theme-thumb";
     img.title = theme.name;
