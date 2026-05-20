@@ -169,6 +169,12 @@ function isCachedFaviconDataUrl(url) {
   return value === DEFAULT_FAVICON || value.indexOf("data:") === 0;
 }
 
+function shouldReuseCachedFaviconData(entry, realUrl) {
+  if (!entry || !entry.faviconDataUrl) return false;
+  if (entry.faviconDataUrl !== DEFAULT_FAVICON) return true;
+  return !realUrl || isFallbackFaviconUrl(realUrl);
+}
+
 function sanitizeStoredFaviconEntry(url, entry) {
   if (!entry || typeof entry !== "object") return null;
 
@@ -178,11 +184,12 @@ function sanitizeStoredFaviconEntry(url, entry) {
       url: url || next.url || "",
       sourceUrl: next.faviconDataUrl
     });
-    delete next.faviconDataUrl;
+    next.faviconDataUrl = DEFAULT_FAVICON;
   }
 
-  if (!next.faviconDataUrl && isFallbackFaviconUrl(next.favicon)) {
+  if (!next.faviconDataUrl && (!next.favicon || isFallbackFaviconUrl(next.favicon))) {
     next.favicon = DEFAULT_FAVICON;
+    next.faviconDataUrl = DEFAULT_FAVICON;
   }
 
   return next;
@@ -205,11 +212,35 @@ function createDefaultFaviconEntry(url) {
   };
 }
 
+function createRenderableFallbackEntry(url, storedFavicon) {
+  if (storedFavicon && !isFallbackFaviconUrl(storedFavicon)) {
+    return {
+      url: normalizeFaviconUrl(url) || url || "",
+      favicon: storedFavicon,
+      faviconDataUrl: DEFAULT_FAVICON,
+      updatedAt: Date.now()
+    };
+  }
+  return createDefaultFaviconEntry(url);
+}
+
 function ensureDefaultFaviconEntry(url) {
   var entry = createDefaultFaviconEntry(url);
   mergeStoredFaviconEntry(url, entry);
   clearFaviconFailure(url);
   return entry;
+}
+
+function ensureRenderableFaviconEntry(url, storedFavicon) {
+  var cacheKey = getFaviconCacheKey(url);
+  if (!cacheKey) return createRenderableFallbackEntry(url, storedFavicon);
+
+  var existing = getCachedFaviconEntrySync(url);
+  if (existing && existing.faviconDataUrl) return existing;
+
+  var entry = createRenderableFallbackEntry(url, storedFavicon);
+  mergeStoredFaviconEntry(url, entry);
+  return getCachedFaviconEntrySync(url) || entry;
 }
 
 var FAVICON_CACHE_KEY_PREFIX = "_favicon:";
@@ -408,7 +439,7 @@ function primeFaviconCache(url, sourceUrl, realUrl, options) {
   if (!cacheKey || !sourceUrl || sourceUrl === DEFAULT_FAVICON) return Promise.resolve(null);
 
   var existing = getCachedFaviconEntrySync(url);
-  if (existing && existing.faviconDataUrl && !forceRefresh) {
+  if (existing && shouldReuseCachedFaviconData(existing, realUrl) && !forceRefresh) {
     if (realUrl && existing.favicon !== realUrl) {
       mergeStoredFaviconEntry(url, { favicon: realUrl, updatedAt: Date.now() });
     }
@@ -462,7 +493,7 @@ async function requestFaviconCacheRefresh(url, storedFavicon) {
   var entry = await getStoredFaviconEntry(url);
   var cachedRealUrl = entry && entry.favicon && !isFallbackFaviconUrl(entry.favicon) ? entry.favicon : null;
   var storedRealUrl = storedFavicon && !isFallbackFaviconUrl(storedFavicon) ? storedFavicon : null;
-  if (entry && entry.faviconDataUrl) {
+  if (entry && shouldReuseCachedFaviconData(entry, cachedRealUrl || storedRealUrl)) {
     clearFaviconFailure(url);
     return {
       entry: entry,
@@ -515,16 +546,18 @@ function getFaviconUrlSync(url) {
 
 // Built-in globe favicon (data URI) — always available, no network needed
 var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5">' +
-  '<circle cx="12" cy="12" r="10"/>' +
-  '<ellipse cx="12" cy="12" rx="4" ry="10"/>' +
-  '<path d="M2 12h20"/><path d="M12 2v20"/></svg>'
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">' +
+  '<circle cx="12" cy="12" r="10" fill="rgba(15,23,42,0.38)" stroke="rgba(255,255,255,0.92)" stroke-width="1.8"/>' +
+  '<ellipse cx="12" cy="12" rx="4.2" ry="8.2" stroke="rgba(255,255,255,0.92)" stroke-width="1.4"/>' +
+  '<path d="M4 12h16" stroke="rgba(255,255,255,0.92)" stroke-width="1.4" stroke-linecap="round"/>' +
+  '<path d="M12 4v16" stroke="rgba(255,255,255,0.92)" stroke-width="1.4" stroke-linecap="round"/>' +
+  '</svg>'
 );
 
 // Render path is read-only: use cached data URLs only. If there is no cached
 // data URL yet, fall back to a built-in icon instead of issuing a remote load.
 function setFaviconWithFallback(img, url, storedFavicon) {
-  var cachedEntry = getCachedFaviconEntrySync(url);
+  var cachedEntry = ensureRenderableFaviconEntry(url, storedFavicon);
   var cachedDataUrl = cachedEntry && cachedEntry.faviconDataUrl ? cachedEntry.faviconDataUrl : "";
   var primary = cachedDataUrl;
 
