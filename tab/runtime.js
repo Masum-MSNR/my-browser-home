@@ -65,8 +65,4 @@
     };
     window.__enableAppDebug = function () { window.__setAppDebug(true); };
     window.__disableAppDebug = function () { window.__setAppDebug(false); };
-
-    if (!window.__APP_DEBUG__) {
-        window.__APP_DEBUG__ = true;
-    }
 })();
