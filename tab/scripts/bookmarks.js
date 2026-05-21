@@ -1629,7 +1629,14 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
 
 // === Init ===
 document.body.classList.add("bookmark-bar-visible");
-window.addEventListener("syncdataloaded", async function () {
+window.addEventListener("syncdataloaded", async function (event) {
+    var detail = event && event.detail ? event.detail : null;
+    if (detail && Array.isArray(detail.structuralKeys)) {
+        var touchesBookmarks = detail.structuralKeys.indexOf("bookmarks") !== -1;
+        var touchesFolders = detail.structuralKeys.indexOf("bookmarkFolders") !== -1;
+        if (!touchesBookmarks && !touchesFolders) return;
+    }
+
     await repairBookmarkHierarchy();
     await renderBookmarkBar();
     refreshAllFaviconsFromCache();

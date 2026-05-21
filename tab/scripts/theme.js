@@ -339,7 +339,12 @@ document.addEventListener("DOMContentLoaded", async function () {
   });
 });
 
-window.addEventListener("syncdataloaded", async function () {
+window.addEventListener("syncdataloaded", async function (event) {
+  var detail = event && event.detail ? event.detail : null;
+  if (detail && Array.isArray(detail.structuralKeys) && detail.structuralKeys.indexOf("customBg") === -1) {
+    return;
+  }
+
   var saved = await syncGet("customBg");
   if (saved) await applyTheme(saved);
 });

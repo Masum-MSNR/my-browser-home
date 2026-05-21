@@ -453,9 +453,14 @@ document.addEventListener("click", () => {
 
 renderShortcuts().then(refreshShortcutFavicons);
 
-window.addEventListener("syncdataloaded", async function () {
-    await renderShortcuts();
-    refreshShortcutFavicons();
+window.addEventListener("syncdataloaded", async function (event) {
+  var detail = event && event.detail ? event.detail : null;
+  if (detail && Array.isArray(detail.structuralKeys) && detail.structuralKeys.indexOf("shortcuts") === -1) {
+    return;
+  }
+
+  await renderShortcuts();
+  refreshShortcutFavicons();
 });
 
 // === Live favicon refresh for shortcuts ===
