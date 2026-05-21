@@ -22,8 +22,59 @@ const themes = [
 ];
 
 var THEME_CACHE_KEY = "themeCache";
+var THEME_PREVIEW_CACHE_KEY = "themePreviewCache";
 var cachedTheme = null;
 var activeThemeUrl = null;
+var cachedThemePreviews = {};
+var pendingThemePreviewRequests = {};
+
+function getThemeStorageValue(key) {
+  return new Promise(function (resolve) {
+    if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.local) {
+      resolve({});
+      return;
+    }
+    chrome.storage.local.get(key, function (result) {
+      resolve(result || {});
+    });
+  });
+}
+
+function setThemeStorageValue(value) {
+  return new Promise(function (resolve) {
+    if (typeof chrome === "undefined" || !chrome.storage || !chrome.storage.local) {
+      resolve();
+      return;
+    }
+    chrome.storage.local.set(value, function () {
+      resolve();
+    });
+  });
+}
+
+function sanitizeThemeCacheEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  var next = Object.assign({}, entry);
+  if (!next.url || typeof next.url !== "string") return null;
+  if (!next.dataUrl || typeof next.dataUrl !== "string" || next.dataUrl.indexOf("data:") !== 0) {
+    next.dataUrl = "";
+  }
+  return next;
+}
+
+function sanitizeThemePreviewCache(value) {
+  var next = {};
+  if (!value || typeof value !== "object") return next;
+
+  for (var key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+    if (!getThemeByUrl(key)) continue;
+    if (typeof value[key] !== "string" || value[key].indexOf("data:") !== 0) continue;
+    next[key] = value[key];
+  }
+
+  return next;
+}
 
 function getThemeByUrl(url) {
   for (var i = 0; i < themes.length; i++) {
@@ -55,10 +106,28 @@ function createThemePlaceholder(theme) {
 }
 
 function getThemePreviewUrl(url) {
+  if (cachedThemePreviews[url]) {
+    return cachedThemePreviews[url];
+  }
   if (cachedTheme && cachedTheme.url === url && cachedTheme.dataUrl) {
     return cachedTheme.dataUrl;
   }
   return createThemePlaceholder(getThemeByUrl(url));
+}
+
+function getThemePreviewSourceUrl(url) {
+  try {
+    var parsed = new URL(url);
+    if (/images\.unsplash\.com$/i.test(parsed.hostname)) {
+      parsed.searchParams.set("auto", "format");
+      parsed.searchParams.set("fit", "crop");
+      parsed.searchParams.set("w", "640");
+      parsed.searchParams.set("q", "60");
+    }
+    return parsed.href;
+  } catch (e) {
+    return url;
+  }
 }
 
 function reportThemeIssue(url, message) {
@@ -86,8 +155,13 @@ function loadImageFromUrl(url) {
 }
 
 async function preloadCache() {
-  var result = await chrome.storage.local.get(THEME_CACHE_KEY);
-  cachedTheme = result[THEME_CACHE_KEY] || null;
+  var result = await getThemeStorageValue([THEME_CACHE_KEY, THEME_PREVIEW_CACHE_KEY]);
+  cachedTheme = sanitizeThemeCacheEntry(result[THEME_CACHE_KEY]) || null;
+  cachedThemePreviews = sanitizeThemePreviewCache(result[THEME_PREVIEW_CACHE_KEY]);
+  if (cachedTheme && cachedTheme.url && cachedTheme.dataUrl && !cachedThemePreviews[cachedTheme.url]) {
+    cachedThemePreviews[cachedTheme.url] = cachedTheme.dataUrl;
+    await setThemeStorageValue({ [THEME_PREVIEW_CACHE_KEY]: cachedThemePreviews });
+  }
 }
 
 function setBodyBackground(url) {
@@ -136,14 +210,58 @@ async function downloadAndCache(url) {
     var img = await loadImageFromUrl(objectUrl);
     var result = analyzeImage(img);
     var dataUrl = await blobToDataUrl(blob);
-    cachedTheme = { url: url, dataUrl: dataUrl, brightness: result.brightness };
-    chrome.storage.local.set({
-      [THEME_CACHE_KEY]: cachedTheme
-    }).catch(function () {});
+    cachedTheme = sanitizeThemeCacheEntry({ url: url, dataUrl: dataUrl, brightness: result.brightness });
+    cachedThemePreviews[url] = dataUrl;
+    await setThemeStorageValue({
+      [THEME_CACHE_KEY]: cachedTheme,
+      [THEME_PREVIEW_CACHE_KEY]: cachedThemePreviews
+    });
     return { dataUrl: dataUrl, brightness: result.brightness };
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+async function downloadThemePreview(url) {
+  if (!url) return "";
+  if (cachedThemePreviews[url]) return cachedThemePreviews[url];
+  if (pendingThemePreviewRequests[url]) return pendingThemePreviewRequests[url];
+
+  pendingThemePreviewRequests[url] = fetch(getThemePreviewSourceUrl(url), { cache: "force-cache" })
+    .then(function (response) {
+      if (!response.ok) throw new Error("Failed to download theme preview");
+      return response.blob();
+    })
+    .then(blobToDataUrl)
+    .then(async function (dataUrl) {
+      if (!dataUrl) return "";
+      cachedThemePreviews[url] = dataUrl;
+      await setThemeStorageValue({ [THEME_PREVIEW_CACHE_KEY]: cachedThemePreviews });
+      return dataUrl;
+    })
+    .catch(function () {
+      return "";
+    })
+    .then(function (result) {
+      delete pendingThemePreviewRequests[url];
+      return result;
+    }, function (error) {
+      delete pendingThemePreviewRequests[url];
+      throw error;
+    });
+
+  return pendingThemePreviewRequests[url];
+}
+
+function ensureThemePreview(url, img) {
+  if (!url || cachedThemePreviews[url] || (cachedTheme && cachedTheme.url === url && cachedTheme.dataUrl)) {
+    return;
+  }
+
+  downloadThemePreview(url).then(function (dataUrl) {
+    if (!dataUrl || !img || img.dataset.themeUrl !== url) return;
+    img.src = dataUrl;
+  });
 }
 
 async function applyTheme(url, options) {
@@ -191,12 +309,14 @@ function renderThemeOptions() {
   container.innerHTML = '';
   themes.forEach(function (theme) {
     var img = document.createElement("img");
+    img.dataset.themeUrl = theme.url;
     img.src = getThemePreviewUrl(theme.url);
     img.alt = theme.name;
     img.className = "theme-thumb";
     img.title = theme.name;
     img.onclick = function () { applyTheme(theme.url, { persist: true }); };
     container.appendChild(img);
+    ensureThemePreview(theme.url, img);
   });
 }
 

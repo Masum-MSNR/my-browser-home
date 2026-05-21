@@ -66,18 +66,7 @@
     window.__enableAppDebug = function () { window.__setAppDebug(true); };
     window.__disableAppDebug = function () { window.__setAppDebug(false); };
 
-    if (window.__APP_DEBUG__ || !originalConsole || typeof console === "undefined") return;
-
-    console.info = function () {};
-    console.warn = function () {};
-    console.error = function () {};
-    console.debug = function () {};
-
-    window.addEventListener("error", function (event) {
-        if (event && typeof event.preventDefault === "function") event.preventDefault();
-    });
-
-    window.addEventListener("unhandledrejection", function (event) {
-        if (event && typeof event.preventDefault === "function") event.preventDefault();
-    });
+    if (!window.__APP_DEBUG__) {
+        window.__APP_DEBUG__ = true;
+    }
 })();

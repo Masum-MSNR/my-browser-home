@@ -77,10 +77,7 @@ function storeTabFaviconCache(tab) {
         }
 
         if (typeof primeFaviconCache === "function") {
-            var faviconSource = typeof getExtensionFaviconUrl === "function"
-                ? getExtensionFaviconUrl(trackedUrl, 32)
-                : tab.favIconUrl;
-            primeFaviconCache(trackedUrl, faviconSource || tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
+            primeFaviconCache(trackedUrl, tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
         }
     });
 }

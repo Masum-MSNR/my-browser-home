@@ -175,6 +175,21 @@ function shouldReuseCachedFaviconData(entry, realUrl) {
   return !realUrl || isFallbackFaviconUrl(realUrl);
 }
 
+function getStoredRealFaviconUrl(entry) {
+  return entry && entry.favicon && !isFallbackFaviconUrl(entry.favicon) ? entry.favicon : "";
+}
+
+function shouldRepairStoredFaviconEntry(url, entry) {
+  if (!url || !entry || hasFaviconFailure(url)) return false;
+
+  var realUrl = getStoredRealFaviconUrl(entry);
+  if (realUrl) {
+    return !entry.faviconDataUrl || entry.faviconDataUrl === DEFAULT_FAVICON || entry.faviconDataUrlSource !== realUrl;
+  }
+
+  return entry.faviconDataUrl === DEFAULT_FAVICON;
+}
+
 function sanitizeStoredFaviconEntry(url, entry) {
   if (!entry || typeof entry !== "object") return null;
 
@@ -187,9 +202,17 @@ function sanitizeStoredFaviconEntry(url, entry) {
     next.faviconDataUrl = DEFAULT_FAVICON;
   }
 
+  if (next.faviconDataUrlSource && typeof next.faviconDataUrlSource !== "string") {
+    delete next.faviconDataUrlSource;
+  }
+
   if (!next.faviconDataUrl && (!next.favicon || isFallbackFaviconUrl(next.favicon))) {
     next.favicon = DEFAULT_FAVICON;
     next.faviconDataUrl = DEFAULT_FAVICON;
+  }
+
+  if (!next.faviconDataUrl || next.faviconDataUrl === DEFAULT_FAVICON) {
+    delete next.faviconDataUrlSource;
   }
 
   return next;
@@ -200,6 +223,11 @@ function getExtensionFaviconUrl(url, size) {
   var px = typeof size === "number" && size > 0 ? size : 32;
   if (!normalizedUrl) return "";
   return "/_favicon/?pageUrl=" + encodeURIComponent(normalizedUrl) + "&size=" + encodeURIComponent(String(px));
+}
+
+function getPageFaviconSourceUrl(url) {
+  if (typeof document === "undefined") return "";
+  return getExtensionFaviconUrl(url, 32);
 }
 
 function createDefaultFaviconEntry(url) {
@@ -236,7 +264,10 @@ function ensureRenderableFaviconEntry(url, storedFavicon) {
   if (!cacheKey) return createRenderableFallbackEntry(url, storedFavicon);
 
   var existing = getCachedFaviconEntrySync(url);
-  if (existing && existing.faviconDataUrl) return existing;
+  if (existing && existing.faviconDataUrl) {
+    schedulePageFaviconRepair(url, existing);
+    return existing;
+  }
 
   var entry = createRenderableFallbackEntry(url, storedFavicon);
   mergeStoredFaviconEntry(url, entry);
@@ -249,6 +280,7 @@ var FAVICON_FAILURE_CACHE_KEY = "_faviconFailureCache";
 var faviconDataCache = {};
 var faviconFailureCache = {};
 var pendingFaviconCacheRequests = {};
+var pendingFaviconRepairs = {};
 
 (function loadFaviconDataCache() {
   if (typeof localStorage === "undefined") return;
@@ -346,6 +378,35 @@ function rememberFaviconCacheEntry(cacheKey, entry) {
   return merged;
 }
 
+function schedulePageFaviconRepair(url, entry) {
+  if (typeof document === "undefined") return;
+  if (!shouldRepairStoredFaviconEntry(url, entry)) return;
+
+  var realUrl = getStoredRealFaviconUrl(entry);
+  var sourceUrl = realUrl || getPageFaviconSourceUrl(url);
+  var cacheKey = getFaviconCacheKey(url);
+
+  if (!sourceUrl || !cacheKey || pendingFaviconRepairs[cacheKey]) return;
+
+  var repairPromise = primeFaviconCache(url, sourceUrl, realUrl || null, { forceRefresh: true })
+    .then(function (dataUrl) {
+      if (!dataUrl) markFaviconFailure(url);
+      return dataUrl;
+    }, function (error) {
+      markFaviconFailure(url);
+      throw error;
+    });
+  pendingFaviconRepairs[cacheKey] = repairPromise;
+  repairPromise.then(
+    function () {
+      delete pendingFaviconRepairs[cacheKey];
+    },
+    function () {
+      delete pendingFaviconRepairs[cacheKey];
+    }
+  );
+}
+
 function mergeStoredFaviconEntry(url, entry) {
   var cacheKey = getFaviconCacheKey(url);
   if (!cacheKey || !entry || typeof entry !== "object") return;
@@ -425,12 +486,60 @@ function arrayBufferToBase64(buffer) {
   return btoa(binary);
 }
 
+function loadFaviconImage(sourceUrl) {
+  return new Promise(function (resolve, reject) {
+    if (typeof Image === "undefined") {
+      reject(new Error("Image loading unavailable"));
+      return;
+    }
+
+    var img = new Image();
+    img.onload = function () { resolve(img); };
+    img.onerror = function () { reject(new Error("Failed to load favicon image")); };
+    img.src = sourceUrl;
+  });
+}
+
+function imageToDataUrl(img) {
+  if (typeof document === "undefined" || !document || typeof document.createElement !== "function") {
+    throw new Error("Canvas unavailable");
+  }
+
+  var width = img && (img.naturalWidth || img.width) ? (img.naturalWidth || img.width) : 32;
+  var height = img && (img.naturalHeight || img.height) ? (img.naturalHeight || img.height) : 32;
+  var canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  var context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas context unavailable");
+
+  context.drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL("image/png");
+}
+
 async function fetchFaviconDataUrl(sourceUrl) {
-  var response = await fetch(sourceUrl, { cache: "force-cache" });
-  if (!response.ok) throw new Error("Failed to fetch favicon");
-  var contentType = response.headers.get("content-type") || "image/png";
-  var buffer = await response.arrayBuffer();
-  return "data:" + contentType + ";base64," + arrayBufferToBase64(buffer);
+  var fetchError = null;
+
+  try {
+    var response = await fetch(sourceUrl, { cache: "force-cache" });
+    if (!response.ok) throw new Error("Failed to fetch favicon");
+    var contentType = response.headers.get("content-type") || "image/png";
+    var buffer = await response.arrayBuffer();
+    return "data:" + contentType + ";base64," + arrayBufferToBase64(buffer);
+  } catch (error) {
+    fetchError = error;
+  }
+
+  var img = await loadFaviconImage(sourceUrl).catch(function (imageError) {
+    throw fetchError || imageError;
+  });
+
+  try {
+    return imageToDataUrl(img);
+  } catch (error) {
+    throw fetchError || error;
+  }
 }
 
 function primeFaviconCache(url, sourceUrl, realUrl, options) {
@@ -439,7 +548,16 @@ function primeFaviconCache(url, sourceUrl, realUrl, options) {
   if (!cacheKey || !sourceUrl || sourceUrl === DEFAULT_FAVICON) return Promise.resolve(null);
 
   var existing = getCachedFaviconEntrySync(url);
-  if (existing && shouldReuseCachedFaviconData(existing, realUrl) && !forceRefresh) {
+  var resolvedSource = realUrl && !isFallbackFaviconUrl(realUrl) ? realUrl : sourceUrl;
+  var canUpgradeDefault = !!(
+    existing &&
+    existing.faviconDataUrl === DEFAULT_FAVICON &&
+    sourceUrl &&
+    sourceUrl !== DEFAULT_FAVICON
+  );
+  var hasMatchingSource = !resolvedSource || !!(existing && existing.faviconDataUrlSource === resolvedSource);
+
+  if (existing && shouldReuseCachedFaviconData(existing, realUrl) && hasMatchingSource && !forceRefresh && !canUpgradeDefault) {
     if (realUrl && existing.favicon !== realUrl) {
       mergeStoredFaviconEntry(url, { favicon: realUrl, updatedAt: Date.now() });
     }
@@ -448,8 +566,8 @@ function primeFaviconCache(url, sourceUrl, realUrl, options) {
 
   if (String(sourceUrl).indexOf("data:") === 0) {
     mergeStoredFaviconEntry(url, realUrl
-      ? { favicon: realUrl, faviconDataUrl: sourceUrl, updatedAt: Date.now() }
-      : { faviconDataUrl: sourceUrl, updatedAt: Date.now() });
+      ? { favicon: realUrl, faviconDataUrl: sourceUrl, faviconDataUrlSource: resolvedSource, updatedAt: Date.now() }
+      : { faviconDataUrl: sourceUrl, faviconDataUrlSource: resolvedSource, updatedAt: Date.now() });
     return Promise.resolve(sourceUrl);
   }
 
@@ -465,8 +583,8 @@ function primeFaviconCache(url, sourceUrl, realUrl, options) {
     .then(function (dataUrl) {
       if (pendingFaviconCacheRequests[cacheKey] !== requestState) return dataUrl;
       mergeStoredFaviconEntry(url, realUrl
-        ? { favicon: realUrl, faviconDataUrl: dataUrl, updatedAt: Date.now() }
-        : { faviconDataUrl: dataUrl, updatedAt: Date.now() });
+        ? { favicon: realUrl, faviconDataUrl: dataUrl, faviconDataUrlSource: resolvedSource, updatedAt: Date.now() }
+        : { faviconDataUrl: dataUrl, faviconDataUrlSource: resolvedSource, updatedAt: Date.now() });
       return dataUrl;
     })
     .catch(function () {
@@ -493,18 +611,26 @@ async function requestFaviconCacheRefresh(url, storedFavicon) {
   var entry = await getStoredFaviconEntry(url);
   var cachedRealUrl = entry && entry.favicon && !isFallbackFaviconUrl(entry.favicon) ? entry.favicon : null;
   var storedRealUrl = storedFavicon && !isFallbackFaviconUrl(storedFavicon) ? storedFavicon : null;
-  if (entry && shouldReuseCachedFaviconData(entry, cachedRealUrl || storedRealUrl)) {
+  var realUrl = cachedRealUrl || storedRealUrl;
+  var hasRenderableCachedData = !!(entry && entry.faviconDataUrl && entry.faviconDataUrl !== DEFAULT_FAVICON);
+  var hasRenderableRealData = !!(entry && realUrl && shouldReuseCachedFaviconData(entry, realUrl) && entry.faviconDataUrlSource === realUrl);
+
+  if (entry && (hasRenderableRealData || (!realUrl && hasRenderableCachedData))) {
     clearFaviconFailure(url);
     return {
       entry: entry,
-      realUrl: cachedRealUrl || storedRealUrl || null,
+      realUrl: realUrl,
       source: cachedRealUrl ? "real" : "cache"
     };
   }
 
-  var realUrl = cachedRealUrl || storedRealUrl;
+  var sourceUrl = realUrl || getPageFaviconSourceUrl(url);
+  if (!sourceUrl) sourceUrl = realUrl;
+  if (!sourceUrl && typeof getExtensionFaviconUrl === "function") {
+    sourceUrl = getExtensionFaviconUrl(url, 32);
+  }
 
-  if (!realUrl) {
+  if (!sourceUrl) {
     var defaultEntry = ensureDefaultFaviconEntry(url);
     return {
       entry: defaultEntry,
@@ -513,7 +639,7 @@ async function requestFaviconCacheRefresh(url, storedFavicon) {
     };
   }
 
-  var dataUrl = await primeFaviconCache(url, realUrl, realUrl);
+  var dataUrl = await primeFaviconCache(url, sourceUrl, realUrl || null);
   if (!dataUrl) {
     var fallbackEntry = ensureDefaultFaviconEntry(url);
     markFaviconFailure(url);
@@ -527,10 +653,13 @@ async function requestFaviconCacheRefresh(url, storedFavicon) {
 
   clearFaviconFailure(url);
   var updatedEntry = await getStoredFaviconEntry(url);
+  var resolvedRealUrl = updatedEntry && updatedEntry.favicon && !isFallbackFaviconUrl(updatedEntry.favicon)
+    ? updatedEntry.favicon
+    : realUrl;
   return {
     entry: updatedEntry || { favicon: realUrl || null, faviconDataUrl: dataUrl },
-    realUrl: updatedEntry && updatedEntry.favicon ? updatedEntry.favicon : realUrl,
-    source: realUrl ? "real" : "fallback"
+    realUrl: resolvedRealUrl || null,
+    source: realUrl ? "real" : "extension"
   };
 }
 
@@ -581,6 +710,7 @@ function resolveCachedFaviconEntry(url, cb) {
   try {
     var cached = getCachedFaviconEntrySync(url);
     if (cached && cached.faviconDataUrl) {
+      schedulePageFaviconRepair(url, cached);
       cb(cached);
       return;
     }
@@ -593,6 +723,7 @@ function resolveCachedFaviconEntry(url, cb) {
       if (!entry) return;
       if (!entry.faviconDataUrl) return;
       rememberFaviconCacheEntry(cacheKey, entry);
+      schedulePageFaviconRepair(url, entry);
       if (JSON.stringify(entry) !== JSON.stringify(result[cacheKey])) {
         chrome.storage.local.set({ [cacheKey]: entry });
       }
@@ -634,6 +765,9 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged 
       if (!next || typeof next !== "object") continue;
       if (!next.favicon && !next.faviconDataUrl) continue;
       rememberFaviconCacheEntry(key, next);
+
+      var cacheUrl = next.url || getFaviconUrlFromCacheKey(key);
+      schedulePageFaviconRepair(cacheUrl, next);
     }
   });
 }

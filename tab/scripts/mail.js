@@ -3,6 +3,7 @@ const mailDropdown = document.getElementById("mail-dropdown");
 const mailDropdownList = document.getElementById("mail-dropdown-list");
 const mailDropdownHeader = document.querySelector(".mail-dropdown-header");
 const MAIL_STORAGE_KEY = "mailShortcuts";
+const pendingMailImageRequests = {};
 
 function closeDropdown() {
     mailDropdown.classList.remove("open");
@@ -58,7 +59,11 @@ async function setMailShortcuts(val) {
 }
 
 async function renderMailList() {
-    const mails = await getMailShortcuts();
+    const normalized = await normalizeMailShortcuts(await getMailShortcuts());
+    const mails = normalized.items;
+    if (normalized.changed) {
+        await setMailShortcuts(mails);
+    }
     mailDropdownList.innerHTML = "";
     mails.forEach(function (m, idx) { addMailItem(m, idx); });
 }
@@ -77,9 +82,107 @@ function createServiceLink(href, title, iconClass) {
     return link;
 }
 
+function isRenderableMailImageUrl(image) {
+    if (!image) return false;
+
+    if (
+        image.indexOf("data:") === 0 ||
+        image.indexOf("blob:") === 0 ||
+        image.indexOf("chrome-extension://") === 0 ||
+        image.indexOf("/") === 0
+    ) {
+        return true;
+    }
+
+    return false;
+}
+
+function isRemoteMailImageUrl(image) {
+    if (!image) return false;
+
+    try {
+        var parsed = new URL(image);
+        return parsed.protocol === "https:" && /(^|\.)googleusercontent\.com$/i.test(parsed.hostname);
+    } catch (e) {
+        return false;
+    }
+}
+
+function blobToDataUrl(blob) {
+    return new Promise(function (resolve, reject) {
+        var reader = new FileReader();
+        reader.onloadend = function () {
+            resolve(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.onerror = function () {
+            reject(new Error("Failed to read mail image blob"));
+        };
+        reader.readAsDataURL(blob);
+    });
+}
+
+function fetchMailImageDataUrl(image) {
+    if (!isRemoteMailImageUrl(image)) return Promise.resolve("");
+    if (pendingMailImageRequests[image]) return pendingMailImageRequests[image];
+
+    pendingMailImageRequests[image] = fetch(image, { cache: "force-cache" })
+        .then(function (response) {
+            if (!response.ok) throw new Error("Failed to fetch mail image");
+            return response.blob();
+        })
+        .then(blobToDataUrl)
+        .catch(function () {
+            return "";
+        })
+        .then(function (result) {
+            delete pendingMailImageRequests[image];
+            return result;
+        }, function (error) {
+            delete pendingMailImageRequests[image];
+            throw error;
+        });
+
+    return pendingMailImageRequests[image];
+}
+
+async function normalizeMailShortcut(mail) {
+    if (!mail || typeof mail !== "object") return mail;
+
+    var next = Object.assign({}, mail);
+    var image = typeof next.image === "string" ? next.image.trim() : "";
+
+    if (!image || isRenderableMailImageUrl(image)) {
+        next.image = image;
+        return { item: next, changed: image !== (mail.image || "") };
+    }
+
+    if (!isRemoteMailImageUrl(image)) {
+        next.image = "";
+        return { item: next, changed: true };
+    }
+
+    var dataUrl = await fetchMailImageDataUrl(image);
+    next.image = dataUrl || "";
+    return { item: next, changed: next.image !== image };
+}
+
+async function normalizeMailShortcuts(mails) {
+    var items = Array.isArray(mails) ? mails : [];
+    var changed = false;
+    var normalized = [];
+
+    for (var i = 0; i < items.length; i++) {
+        var result = await normalizeMailShortcut(items[i]);
+        normalized.push(result.item);
+        if (result.changed) changed = true;
+    }
+
+    return { items: normalized, changed: changed };
+}
+
 function createAccountAvatar(name, email, image) {
     var trimmedImage = typeof image === "string" ? image.trim() : "";
-    if (trimmedImage && (trimmedImage.indexOf("data:") === 0 || trimmedImage.indexOf("blob:") === 0 || trimmedImage.indexOf("chrome-extension://") === 0 || trimmedImage.indexOf("/") === 0)) {
+    if (isRenderableMailImageUrl(trimmedImage)) {
         const avatar = document.createElement("img");
         avatar.className = "account-avatar account-avatar-image";
         avatar.src = trimmedImage;
@@ -251,7 +354,8 @@ async function scanAccountChooserPageAndSave() {
             for (var ri2 = 0; ri2 < result.length; ri2++) {
                 if (!seen[result[ri2].email]) merged.push(result[ri2]);
             }
-            await setMailShortcuts(merged);
+            var normalized = await normalizeMailShortcuts(merged);
+            await setMailShortcuts(normalized.items);
             await renderMailList();
         }
     } catch (err) {}
