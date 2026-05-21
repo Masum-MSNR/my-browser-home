@@ -3,9 +3,56 @@
 // devices to roll each other's writes back. localStorage is mirrored for
 // fast synchronous fallbacks elsewhere in the code.
 var SYNC_DATA_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders", "customBg"];
+var LOCAL_SYNC_WRITE_TTL_MS = 3000;
+var pendingLocalSyncWrites = {};
 
 function isAppSyncDataKey(key) {
     return SYNC_DATA_KEYS.indexOf(key) !== -1;
+}
+
+function serializeLocalSyncWriteValue(value) {
+    try {
+        return JSON.stringify(value);
+    } catch (e) {
+        return "";
+    }
+}
+
+function rememberLocalSyncWrite(obj) {
+    if (!obj || typeof obj !== "object") return;
+    var expiresAt = Date.now() + LOCAL_SYNC_WRITE_TTL_MS;
+    for (var key in obj) {
+        if (!obj.hasOwnProperty(key) || !isAppSyncDataKey(key)) continue;
+        if (!Array.isArray(pendingLocalSyncWrites[key])) pendingLocalSyncWrites[key] = [];
+        pendingLocalSyncWrites[key].push({
+            valueHash: serializeLocalSyncWriteValue(obj[key]),
+            expiresAt: expiresAt
+        });
+    }
+}
+
+function wasPendingLocalSyncWrite(key, value) {
+    var entries = pendingLocalSyncWrites[key];
+    if (!Array.isArray(entries) || entries.length === 0) return false;
+
+    var now = Date.now();
+    var valueHash = serializeLocalSyncWriteValue(value);
+    var nextEntries = [];
+    var matched = false;
+
+    for (var i = 0; i < entries.length; i++) {
+        if (!entries[i] || entries[i].expiresAt < now) continue;
+        if (!matched && entries[i].valueHash === valueHash) {
+            matched = true;
+            continue;
+        }
+        nextEntries.push(entries[i]);
+    }
+
+    if (nextEntries.length > 0) pendingLocalSyncWrites[key] = nextEntries;
+    else delete pendingLocalSyncWrites[key];
+
+    return matched;
 }
 
 function syncGet(key) {
@@ -39,6 +86,7 @@ function syncGet(key) {
 
 function syncSet(obj) {
     return new Promise(function (resolve) {
+        rememberLocalSyncWrite(obj);
         chrome.storage.local.set(obj, function () {
             for (var k in obj) {
                 if (obj.hasOwnProperty(k)) {

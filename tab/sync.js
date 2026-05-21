@@ -218,6 +218,17 @@ async function applyRemoteDocData(d, source) {
     });
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
     var mergedBg = isSyncDirty("customBg") ? localBg : remoteBg;
+    var uiRefresh = buildSyncUiRefreshDetail({
+        shortcuts: local,
+        bookmarks: localBookmarks,
+        bookmarkFolders: localFolders,
+        customBg: localBg
+    }, {
+        shortcuts: merged,
+        bookmarks: mergedBookmarks,
+        bookmarkFolders: mergedFolders,
+        customBg: mergedBg
+    });
     var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, null, mergedBg);
 
     var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, bg: localBg, d: localDeleted });
@@ -239,7 +250,7 @@ async function applyRemoteDocData(d, source) {
     logSyncEvent(source, "applied", { docPath: docPath, merged: mergedSummary, deleted: Object.keys(mergedDeleted).sort() });
     clearSyncDirty(["shortcuts", "bookmarks", "bookmarkFolders", "customBg"]);
     setSyncIcon("synced");
-    window.dispatchEvent(new CustomEvent("syncdataloaded"));
+    dispatchSyncUiRefresh(uiRefresh);
     return true;
 }
 
@@ -508,6 +519,144 @@ function compareSyncItems(a, b) {
 
 function getScopeKey(value) {
     return value === undefined || value === null ? "__root__" : String(value);
+}
+
+function serializeSyncUiValue(value) {
+    if (value === undefined) return "__sync_ui_undefined__";
+    try {
+        return JSON.stringify(value);
+    } catch (e) {
+        return String(value);
+    }
+}
+
+function pushUniqueSyncUiKey(keys, key) {
+    if (keys.indexOf(key) === -1) keys.push(key);
+}
+
+function cloneSyncUiComparableItem(item, ignoreFavicon) {
+    if (!item || typeof item !== "object") return item;
+
+    var next = {};
+    for (var key in item) {
+        if (!item.hasOwnProperty(key)) continue;
+        if (key === "updatedAt") continue;
+        if (ignoreFavicon && key === "favicon") continue;
+        next[key] = item[key];
+    }
+    return next;
+}
+
+function normalizeSyncUiComparableItems(items, ignoreFavicon) {
+    if (!Array.isArray(items)) return [];
+
+    var next = [];
+    for (var i = 0; i < items.length; i++) {
+        next.push(cloneSyncUiComparableItem(items[i], ignoreFavicon));
+    }
+    return next;
+}
+
+function areSyncUiComparableItemsEqual(left, right, ignoreFavicon) {
+    return serializeSyncUiValue(normalizeSyncUiComparableItems(left, ignoreFavicon)) ===
+        serializeSyncUiValue(normalizeSyncUiComparableItems(right, ignoreFavicon));
+}
+
+function isMetadataOnlyUrlItemChange(left, right) {
+    return areSyncUiComparableItemsEqual(left, right, true) &&
+        !areSyncUiComparableItemsEqual(left, right, false);
+}
+
+function createSyncUiRefreshDetail() {
+    return {
+        structuralKeys: [],
+        metadataOnlyKeys: []
+    };
+}
+
+function hasSyncUiRefresh(detail) {
+    return !!(detail && (detail.structuralKeys.length > 0 || detail.metadataOnlyKeys.length > 0));
+}
+
+function mergeSyncUiRefreshDetail(target, next) {
+    if (!next) return target;
+    if (!target) target = createSyncUiRefreshDetail();
+
+    for (var i = 0; i < next.structuralKeys.length; i++) {
+        pushUniqueSyncUiKey(target.structuralKeys, next.structuralKeys[i]);
+    }
+    for (var j = 0; j < next.metadataOnlyKeys.length; j++) {
+        if (target.structuralKeys.indexOf(next.metadataOnlyKeys[j]) !== -1) continue;
+        pushUniqueSyncUiKey(target.metadataOnlyKeys, next.metadataOnlyKeys[j]);
+    }
+    return target;
+}
+
+function buildSyncUiRefreshDetail(beforeState, afterState) {
+    var detail = createSyncUiRefreshDetail();
+
+    if (!areSyncUiComparableItemsEqual(beforeState.shortcuts, afterState.shortcuts, false)) {
+        if (isMetadataOnlyUrlItemChange(beforeState.shortcuts, afterState.shortcuts)) {
+            pushUniqueSyncUiKey(detail.metadataOnlyKeys, "shortcuts");
+        } else {
+            pushUniqueSyncUiKey(detail.structuralKeys, "shortcuts");
+        }
+    }
+
+    if (!areSyncUiComparableItemsEqual(beforeState.bookmarks, afterState.bookmarks, false)) {
+        if (isMetadataOnlyUrlItemChange(beforeState.bookmarks, afterState.bookmarks)) {
+            pushUniqueSyncUiKey(detail.metadataOnlyKeys, "bookmarks");
+        } else {
+            pushUniqueSyncUiKey(detail.structuralKeys, "bookmarks");
+        }
+    }
+
+    if (serializeSyncUiValue(beforeState.bookmarkFolders) !== serializeSyncUiValue(afterState.bookmarkFolders)) {
+        pushUniqueSyncUiKey(detail.structuralKeys, "bookmarkFolders");
+    }
+
+    if (serializeSyncUiValue(beforeState.customBg) !== serializeSyncUiValue(afterState.customBg)) {
+        pushUniqueSyncUiKey(detail.structuralKeys, "customBg");
+    }
+
+    return detail;
+}
+
+function buildStorageSyncUiRefreshDetail(changes) {
+    var detail = createSyncUiRefreshDetail();
+
+    for (var key in changes) {
+        if (!changes.hasOwnProperty(key) || _SYNCED_KEYS.indexOf(key) === -1) continue;
+
+        var change = changes[key];
+        if (!change) continue;
+        if (typeof wasPendingLocalSyncWrite === "function" && wasPendingLocalSyncWrite(key, change.newValue)) {
+            continue;
+        }
+
+        if (key === "shortcuts" || key === "bookmarks") {
+            if (isMetadataOnlyUrlItemChange(change.oldValue, change.newValue)) {
+                pushUniqueSyncUiKey(detail.metadataOnlyKeys, key);
+                continue;
+            }
+        }
+
+        if (serializeSyncUiValue(change.oldValue) !== serializeSyncUiValue(change.newValue)) {
+            pushUniqueSyncUiKey(detail.structuralKeys, key);
+        }
+    }
+
+    detail.metadataOnlyKeys = detail.metadataOnlyKeys.filter(function (key) {
+        return detail.structuralKeys.indexOf(key) === -1;
+    });
+    return detail;
+}
+
+function dispatchSyncUiRefresh(detail) {
+    if (!hasSyncUiRefresh(detail)) return;
+
+    var eventName = detail.structuralKeys.length > 0 ? "syncdataloaded" : "syncitemmetaupdated";
+    window.dispatchEvent(new CustomEvent(eventName, { detail: detail }));
 }
 
 // logSyncEvent is intentionally a no-op since 1.3.0. The summary helpers
@@ -810,6 +959,17 @@ async function fbSaveAll() {
     });
     var mergedDeleted = getMergedTombstones(localDeleted, remoteDeleted);
     var mergedBg = isSyncDirty("customBg") ? customBg : remoteBg;
+    var uiRefresh = buildSyncUiRefreshDetail({
+        shortcuts: local,
+        bookmarks: localBookmarks,
+        bookmarkFolders: localFolders,
+        customBg: customBg
+    }, {
+        shortcuts: merged,
+        bookmarks: mergedBookmarks,
+        bookmarkFolders: mergedFolders,
+        customBg: mergedBg
+    });
     var writeRevision = Date.now();
     var mergedSummary = summarizeSyncState(merged, mergedBookmarks, mergedFolders, null, mergedBg);
 
@@ -856,15 +1016,7 @@ async function fbSaveAll() {
         return;
     }
 
-    var localBefore = JSON.stringify({ s: local, b: localBookmarks, f: localFolders, bg: customBg, d: localDeleted });
-    var mergedAfter = JSON.stringify({ s: merged, b: mergedBookmarks, f: mergedFolders, bg: mergedBg, d: mergedDeleted });
-    var uiChanged = localBefore !== mergedAfter ||
-        JSON.stringify({ s: remote, b: remoteBookmarks, f: remoteFolders, bg: remoteBg }) !==
-        JSON.stringify({ s: local, b: localBookmarks, f: localFolders, bg: customBg });
-
-    if (uiChanged) {
-        window.dispatchEvent(new CustomEvent("syncdataloaded"));
-    }
+    dispatchSyncUiRefresh(uiRefresh);
 }
 
 async function fbLoadAll() {
@@ -981,18 +1133,19 @@ setInterval(function () {
 // extension's background script updated something), let listeners
 // rerender. Debounced so a burst of writes triggers one render.
 var _onChangedTimer = null;
+var _pendingOnChangedRefresh = createSyncUiRefreshDetail();
 var _SYNCED_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders", "customBg"];
 if (chrome && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener(function (changes, areaName) {
         if (areaName !== "local") return;
-        var relevant = false;
-        for (var k in changes) {
-            if (_SYNCED_KEYS.indexOf(k) !== -1) { relevant = true; break; }
-        }
-        if (!relevant) return;
+        var refreshDetail = buildStorageSyncUiRefreshDetail(changes);
+        if (!hasSyncUiRefresh(refreshDetail)) return;
+        _pendingOnChangedRefresh = mergeSyncUiRefreshDetail(_pendingOnChangedRefresh, refreshDetail);
         clearTimeout(_onChangedTimer);
         _onChangedTimer = setTimeout(function () {
-            window.dispatchEvent(new CustomEvent("syncdataloaded"));
+            var nextRefresh = _pendingOnChangedRefresh;
+            _pendingOnChangedRefresh = createSyncUiRefreshDetail();
+            dispatchSyncUiRefresh(nextRefresh);
         }, 200);
     });
 }

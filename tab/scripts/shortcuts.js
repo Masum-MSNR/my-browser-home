@@ -130,7 +130,13 @@ async function renderShortcuts() {
     menu.querySelector(".edit-btn").onclick = () => {
       shortcutNameInput.value = shortcut.name;
       shortcutUrlInput.value = shortcut.url;
-      if (shortcutLocalUrlInput) shortcutLocalUrlInput.value = typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, shortcut.id) : "";
+      if (shortcutLocalUrlInput && typeof primeLocalUrlInput === "function") {
+        primeLocalUrlInput(
+          shortcutLocalUrlInput,
+          shortcut.url,
+          typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, shortcut.id) : ""
+        );
+      }
       shortcutTitle.textContent = "Edit Shortcut";
       editingShortcut = shortcut.id;
       shortcutDialog.style.display = "flex";
@@ -308,7 +314,9 @@ function addAddShortcutButton() {
     shortcutTitle.textContent = "Add Shortcut";
     shortcutDialog.style.display = "flex";
     shortcutNameInput.dataset.manualEdit = "";
-    if (shortcutLocalUrlInput) shortcutLocalUrlInput.value = "";
+    if (shortcutLocalUrlInput && typeof primeLocalUrlInput === "function") {
+      primeLocalUrlInput(shortcutLocalUrlInput, shortcutUrlInput.value, "");
+    }
     syncNameBtn.style.display = "none";
   });
 
@@ -325,7 +333,9 @@ shortcutForm.onsubmit = async (e) => {
   e.preventDefault();
   const name = shortcutNameInput.value.trim();
   const url = shortcutUrlInput.value.trim();
-  const localUrl = shortcutLocalUrlInput ? shortcutLocalUrlInput.value.trim() : "";
+  const localUrl = typeof normalizeLocalOverrideUrl === "function"
+    ? normalizeLocalOverrideUrl(shortcutLocalUrlInput ? shortcutLocalUrlInput.value : "", url)
+    : (shortcutLocalUrlInput ? shortcutLocalUrlInput.value.trim() : "");
   if (!name || !url) return;
 
   var shortcuts = await getShortcuts();
@@ -385,7 +395,9 @@ shortcutForm.onsubmit = async (e) => {
   if (shouldFetchFavicon) await fetchShortcutFaviconOnSave(savedShortcutId);
   await renderShortcuts();
   shortcutForm.reset();
-  if (shortcutLocalUrlInput) shortcutLocalUrlInput.value = "";
+  if (shortcutLocalUrlInput && typeof primeLocalUrlInput === "function") {
+    primeLocalUrlInput(shortcutLocalUrlInput, "", "");
+  }
   shortcutDialog.style.display = "none";
   editingShortcut = null;
   syncNameBtn.style.display = "none";
@@ -396,17 +408,28 @@ closeShortcutDialog.onclick = () => {
 };
 
 shortcutUrlInput.addEventListener("input", () => {
-  if (editingShortcut !== null) return;
-
   const url = shortcutUrlInput.value.trim();
-  try {
-    const parsed = new URL(url);
-    const domain = parsed.hostname.replace(/^www\./, '');
-    if (!shortcutNameInput.dataset.manualEdit) {
-      shortcutNameInput.value = domain.split('.')[0];
-    }
-  } catch { }
+  if (editingShortcut === null) {
+    try {
+      const parsed = new URL(url);
+      const domain = parsed.hostname.replace(/^www\./, '');
+      if (!shortcutNameInput.dataset.manualEdit) {
+        shortcutNameInput.value = domain.split('.')[0];
+      }
+    } catch { }
+  }
+  if (shortcutLocalUrlInput && typeof syncLocalUrlInputWithRemote === "function") {
+    syncLocalUrlInputWithRemote(shortcutUrlInput, shortcutLocalUrlInput);
+  }
 });
+
+if (shortcutLocalUrlInput) {
+  shortcutLocalUrlInput.addEventListener("input", () => {
+    if (typeof updateLocalUrlInputManualState === "function") {
+      updateLocalUrlInputManualState(shortcutLocalUrlInput, shortcutUrlInput.value);
+    }
+  });
+}
 
 shortcutNameInput.addEventListener("input", () => {
   shortcutNameInput.dataset.manualEdit = "true";
@@ -462,6 +485,42 @@ function refreshShortcutFavicons() {
         }
     }
 }
+
+    async function refreshRenderedShortcutIcons() {
+      var shortcuts = await getShortcuts();
+      if (!Array.isArray(shortcuts)) return;
+
+      var localLinks = await getShortcutLocalLinks();
+      var byId = {};
+      for (var i = 0; i < shortcuts.length; i++) {
+        if (shortcuts[i] && shortcuts[i].id) byId[shortcuts[i].id] = shortcuts[i];
+      }
+
+      var items = shortcutList.querySelectorAll(".shortcut-item a");
+      for (var j = 0; j < items.length; j++) {
+        var shortcutId = items[j].dataset.shortcutId || "";
+        var shortcut = byId[shortcutId];
+        if (!shortcut) continue;
+
+        var img = items[j].querySelector(".shortcut-icon");
+        if (!img) continue;
+
+        var effectiveUrl = typeof getResolvedItemUrl === "function"
+          ? getResolvedItemUrl(shortcut, localLinks)
+          : shortcut.url;
+        setFaviconWithFallback(img, effectiveUrl || shortcut.url, shortcut.favicon);
+      }
+    }
+
+    window.addEventListener("syncitemmetaupdated", async function (event) {
+      var detail = event && event.detail ? event.detail : null;
+      if (detail && Array.isArray(detail.metadataOnlyKeys) && detail.metadataOnlyKeys.indexOf("shortcuts") === -1) {
+        return;
+      }
+
+      await refreshRenderedShortcutIcons();
+      refreshShortcutFavicons();
+    });
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
     if (areaName !== "local") return;

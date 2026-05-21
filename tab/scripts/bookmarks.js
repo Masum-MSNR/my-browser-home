@@ -1138,15 +1138,26 @@ function wireAddForms() {
     var submitBtn = document.getElementById("bm-submit-btn");
 
     urlInput.addEventListener("input", function () {
-        if (editingBookmarkId !== null) return;
-        try {
-            var domain = new URL(urlInput.value.trim()).hostname.replace(/^www\./, '');
-            if (!nameInput.dataset.manualEdit) nameInput.value = domain.split('.')[0];
-        } catch (e) {}
+        if (editingBookmarkId === null) {
+            try {
+                var domain = new URL(urlInput.value.trim()).hostname.replace(/^www\./, '');
+                if (!nameInput.dataset.manualEdit) nameInput.value = domain.split('.')[0];
+            } catch (e) {}
+        }
+        if (localUrlInput && typeof syncLocalUrlInputWithRemote === "function") {
+            syncLocalUrlInputWithRemote(urlInput, localUrlInput);
+        }
     });
     nameInput.addEventListener("input", function () {
         nameInput.dataset.manualEdit = "true";
     });
+    if (localUrlInput) {
+        localUrlInput.addEventListener("input", function () {
+            if (typeof updateLocalUrlInputManualState === "function") {
+                updateLocalUrlInputManualState(localUrlInput, urlInput.value);
+            }
+        });
+    }
 
     if (editingBookmarkId !== null) {
         Promise.all([getBookmarks(), getBookmarkLocalLinks()]).then(function (values) {
@@ -1156,7 +1167,13 @@ function wireAddForms() {
             for (var i = 0; i < all.length; i++) {
                 if (all[i] && all[i].id === editingBookmarkId) {
                     urlInput.value = all[i].url;
-                    if (localUrlInput) localUrlInput.value = typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, all[i].id) : "";
+                    if (localUrlInput && typeof primeLocalUrlInput === "function") {
+                        primeLocalUrlInput(
+                            localUrlInput,
+                            all[i].url,
+                            typeof getLocalLinkValue === "function" ? getLocalLinkValue(localLinks, all[i].id) : ""
+                        );
+                    }
                     nameInput.value = all[i].name;
                     nameInput.dataset.manualEdit = "true";
                     submitBtn.textContent = "Save";
@@ -1164,13 +1181,17 @@ function wireAddForms() {
                 }
             }
         });
+    } else if (localUrlInput && typeof primeLocalUrlInput === "function") {
+        primeLocalUrlInput(localUrlInput, urlInput.value, "");
     }
 
     bmForm.onsubmit = async function (e) {
         e.preventDefault();
         var name = nameInput.value.trim();
         var url = urlInput.value.trim();
-        var localUrl = localUrlInput ? localUrlInput.value.trim() : "";
+        var localUrl = typeof normalizeLocalOverrideUrl === "function"
+            ? normalizeLocalOverrideUrl(localUrlInput ? localUrlInput.value : "", url)
+            : (localUrlInput ? localUrlInput.value.trim() : "");
         if (!name || !url) return;
         var all = await getBookmarks();
         var localLinks = await getBookmarkLocalLinks();
@@ -1493,6 +1514,71 @@ function refreshAllFaviconsFromCache() {
         }
     }
 }
+
+async function refreshRenderedBookmarkIcons() {
+    var bookmarks = await getBookmarksCached();
+    if (!Array.isArray(bookmarks)) return;
+
+    var localLinks = await getBookmarkLocalLinks();
+    var byId = {};
+    for (var i = 0; i < bookmarks.length; i++) {
+        if (bookmarks[i] && bookmarks[i].id) byId[bookmarks[i].id] = bookmarks[i];
+    }
+
+    var barItems = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
+    for (var j = 0; j < barItems.length; j++) {
+        var bookmarkId = barItems[j].dataset.bmId || "";
+        var bookmark = byId[bookmarkId];
+        if (!bookmark) continue;
+
+        var url = typeof getResolvedItemUrl === "function"
+            ? getResolvedItemUrl(bookmark, localLinks)
+            : bookmark.url;
+        var img = barItems[j].querySelector(".bm-favicon");
+        if (!img || !url) continue;
+
+        barItems[j].dataset.bmUrl = url;
+        setFaviconWithFallback(img, url, bookmark.favicon);
+    }
+
+    var dropdownIcons = document.querySelectorAll("#bookmark-dropdown-list .bm-dl-favicon");
+    for (var k = 0; k < dropdownIcons.length; k++) {
+        var dropdownBookmark = byId[dropdownIcons[k].dataset.bmId || ""];
+        if (!dropdownBookmark) continue;
+
+        var dropdownUrl = typeof getResolvedItemUrl === "function"
+            ? getResolvedItemUrl(dropdownBookmark, localLinks)
+            : dropdownBookmark.url;
+        if (!dropdownUrl) continue;
+
+        dropdownIcons[k].dataset.bmUrl = dropdownUrl;
+        setFaviconWithFallback(dropdownIcons[k], dropdownUrl, dropdownBookmark.favicon);
+    }
+
+    var submenuItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark");
+    for (var m = 0; m < submenuItems.length; m++) {
+        var submenuBookmark = byId[submenuItems[m].dataset.bmId || ""];
+        if (!submenuBookmark) continue;
+
+        var submenuUrl = typeof getResolvedItemUrl === "function"
+            ? getResolvedItemUrl(submenuBookmark, localLinks)
+            : submenuBookmark.url;
+        var submenuImg = submenuItems[m].querySelector("img");
+        if (!submenuImg || !submenuUrl) continue;
+
+        setFaviconWithFallback(submenuImg, submenuUrl, submenuBookmark.favicon);
+    }
+}
+
+window.addEventListener("syncitemmetaupdated", async function (event) {
+    var detail = event && event.detail ? event.detail : null;
+    if (detail && Array.isArray(detail.metadataOnlyKeys) && detail.metadataOnlyKeys.indexOf("bookmarks") === -1) {
+        return;
+    }
+
+    await refreshRenderedBookmarkIcons();
+    refreshAllFaviconsFromCache();
+});
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
     if (areaName !== "local") return;

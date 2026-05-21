@@ -77,6 +77,33 @@ function getResolvedItemUrl(item, linkMap) {
   return item && item.url ? item.url : "";
 }
 
+function normalizeLocalOverrideUrl(localUrl, syncedUrl) {
+  var localValue = typeof localUrl === "string" ? localUrl.trim() : "";
+  var syncedValue = typeof syncedUrl === "string" ? syncedUrl.trim() : "";
+  if (!localValue || localValue === syncedValue) return "";
+  return localValue;
+}
+
+function updateLocalUrlInputManualState(localInput, syncedUrl) {
+  if (!localInput) return;
+  localInput.dataset.manualEdit = normalizeLocalOverrideUrl(localInput.value, syncedUrl) ? "true" : "";
+}
+
+function primeLocalUrlInput(localInput, syncedUrl, storedLocalUrl) {
+  if (!localInput) return;
+  var syncedValue = typeof syncedUrl === "string" ? syncedUrl.trim() : "";
+  var overrideValue = normalizeLocalOverrideUrl(storedLocalUrl, syncedValue);
+  localInput.value = overrideValue || syncedValue;
+  localInput.dataset.manualEdit = overrideValue ? "true" : "";
+}
+
+function syncLocalUrlInputWithRemote(remoteInput, localInput) {
+  if (!remoteInput || !localInput) return;
+  updateLocalUrlInputManualState(localInput, remoteInput.value);
+  if (localInput.dataset.manualEdit) return;
+  localInput.value = typeof remoteInput.value === "string" ? remoteInput.value.trim() : "";
+}
+
 function readLocalLinkMap(kind) {
   return new Promise(function (resolve) {
     var storageKey = getLocalLinkStorageKey(kind);
