@@ -32,6 +32,8 @@ function createSyncContext(options) {
     const remoteWrites = [];
     let releaseInitialGet = null;
     let initialGetPromise = null;
+    const timeoutQueue = [];
+    let nextTimeoutId = 1;
     if (options.deferInitialGet) {
         initialGetPromise = new Promise(function (resolve) {
             releaseInitialGet = resolve;
@@ -46,8 +48,21 @@ function createSyncContext(options) {
         Array: Array,
         Object: Object,
         Promise: Promise,
-        setTimeout: setTimeout,
-        clearTimeout: clearTimeout,
+        setTimeout: function (fn, delay) {
+            var entry = {
+                id: nextTimeoutId++,
+                fn: fn,
+                delay: delay,
+                cleared: false
+            };
+            timeoutQueue.push(entry);
+            return entry.id;
+        },
+        clearTimeout: function (id) {
+            for (var i = 0; i < timeoutQueue.length; i++) {
+                if (timeoutQueue[i].id === id) timeoutQueue[i].cleared = true;
+            }
+        },
         setInterval: function () { return 0; },
         fetch: async function () { return { ok: true, status: 200, json: async function () { return { fields: {} }; } }; },
         crypto: { randomUUID: function () { return 'uuid-' + Math.random().toString(16).slice(2); } },
@@ -122,6 +137,23 @@ function createSyncContext(options) {
         remoteLegacyDoc,
         remoteWrites,
         localStorageData,
+        getActiveTimeoutDelays: function () {
+            var delays = [];
+            for (var i = 0; i < timeoutQueue.length; i++) {
+                if (!timeoutQueue[i].cleared) delays.push(timeoutQueue[i].delay);
+            }
+            return delays;
+        },
+        runTimeout: async function (delay) {
+            for (var i = 0; i < timeoutQueue.length; i++) {
+                if (!timeoutQueue[i].cleared && timeoutQueue[i].delay === delay) {
+                    var entry = timeoutQueue.splice(i, 1)[0];
+                    await entry.fn();
+                    return true;
+                }
+            }
+            return false;
+        },
         releaseInitialGet: function () {
             if (releaseInitialGet) releaseInitialGet();
         }
@@ -178,12 +210,31 @@ function assert(label, condition) {
     assert('manual sync writes local changed bookmark item doc', bookmarkWritePaths.indexOf('users/u1/bookmarks/local-added-bookmark') !== -1);
     assert('manual sync writes settings doc instead of legacy blob', bookmarkWritePaths.indexOf('users/u1/settings/main') !== -1);
 
-    const manualOnly = createSyncContext();
-    manualOnly.context.currentUser = { uid: 'u1', email: 'u@test.local', token: 'token' };
-    manualOnly.context.syncInitialized = true;
-    manualOnly.context.markSyncDirty('bookmarks');
-    manualOnly.context.autoSync();
-    assert('autoSync no longer starts background sync work', manualOnly.remoteWrites.length === 0);
+    const autoSave = createSyncContext();
+    autoSave.context.currentUser = { uid: 'u1', email: 'u@test.local', token: 'token' };
+    autoSave.context.syncInitialized = true;
+    autoSave.storage.bookmarks.push({ id: 'auto-bookmark', url: 'https://auto.test', name: 'auto', folderId: null, position: 1, updatedAt: 7000 });
+    autoSave.context.markSyncDirty('bookmarks');
+    autoSave.context.autoSync();
+    assert('autoSync waits for 10s debounce before background sync work', autoSave.remoteWrites.length === 0 && autoSave.getActiveTimeoutDelays().indexOf(10000) !== -1);
+    await autoSave.runTimeout(10000);
+    assert('autoSync pushes dirty bookmarks after debounce', autoSave.remoteWrites.some(function (write) {
+        return write.path === 'users/u1/bookmarks/auto-bookmark';
+    }));
+
+    const resumePending = createSyncContext();
+    resumePending.localStorageData._syncDirtyState = JSON.stringify({ bookmarkFolders: Date.now(), customBg: Date.now() });
+    resumePending.storage.bookmarkFolders.push({ id: 'resume-folder', name: 'resume', parentId: null, position: 1, updatedAt: 7000 });
+    resumePending.storage.customBg = 'resume-bg';
+    await resumePending.context.initSync();
+    assert('initSync schedules autosync for persisted dirty state', resumePending.getActiveTimeoutDelays().indexOf(10000) !== -1);
+    await resumePending.runTimeout(10000);
+    assert('next open resumes pending bookmark folder sync', resumePending.remoteWrites.some(function (write) {
+        return write.path === 'users/u1/bookmarkFolders/resume-folder';
+    }));
+    assert('next open resumes pending background sync', resumePending.remoteWrites.some(function (write) {
+        return write.path === 'users/u1/settings/main' && write.obj.customBg === 'resume-bg';
+    }));
 
     const reorderSave = createSyncContext();
     Object.assign(reorderSave.storage, {

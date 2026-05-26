@@ -51,6 +51,9 @@ async function signIn() {
     lastSeenRemoteRevision = null;
 
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
+    if (typeof autoSync === "function" && typeof hasDirtySyncState === "function" && hasDirtySyncState()) {
+        autoSync({ reason: "signin-resume" });
+    }
     return currentUser;
 }
 

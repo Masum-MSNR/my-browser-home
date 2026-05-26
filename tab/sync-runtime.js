@@ -9,6 +9,7 @@ async function initSync() {
     }
     syncInitialized = true;
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
+    if (currentUser && hasDirtySyncState()) autoSync({ reason: "resume-pending" });
     })();
     return initialSyncPromise;
 }
@@ -231,11 +232,38 @@ var lastWrittenHash = "";
 // === Auto sync ===
 var autoSyncTimer = null;
 var autoSyncRetries = 0;
-var AUTO_SAVE_DEBOUNCE_MS = 2000;   // push 2s after last change (was 5s)
+var AUTO_SAVE_DEBOUNCE_MS = 10000;
 var pendingChanges = false;
 
-function autoSync() {
-    return;
+function scheduleAutoSync(delayMs) {
+    clearTimeout(autoSyncTimer);
+    autoSyncTimer = setTimeout(function () {
+        autoSyncTimer = null;
+        return doAutoSave();
+    }, delayMs);
+}
+
+function autoSync(options) {
+    options = options || {};
+    if (!hasDirtySyncState()) return;
+
+    pendingChanges = true;
+    autoSyncRetries = 0;
+
+    if (!getSyncId()) {
+        logSyncEvent("auto", "queued", {
+            reason: options.reason || "signed-out",
+            dirtyKeys: getDirtySyncKeys()
+        });
+        return;
+    }
+
+    scheduleAutoSync(typeof options.delayMs === "number" ? options.delayMs : AUTO_SAVE_DEBOUNCE_MS);
+    logSyncEvent("auto", "queued", {
+        reason: options.reason || "local-change",
+        delayMs: typeof options.delayMs === "number" ? options.delayMs : AUTO_SAVE_DEBOUNCE_MS,
+        dirtyKeys: getDirtySyncKeys()
+    });
 }
 
 async function doAutoSave() {
@@ -248,28 +276,37 @@ async function doAutoSave() {
             return;
         }
     }
+    if (!getSyncId()) {
+        pendingChanges = hasDirtySyncState();
+        return;
+    }
     if (syncBusy) {
         // A pull is in flight; retry shortly so we don't drop the change.
         autoSyncTimer = setTimeout(function () { doAutoSave(); }, 500);
         return;
     }
-    if (!pendingChanges) return;
+    if (!pendingChanges && !hasDirtySyncState()) return;
     syncBusy = true;
     pendingChanges = false;
     try {
         await fbSaveAll();
+        if (hasDirtySyncState()) throw new Error("Auto sync incomplete");
         autoSyncRetries = 0;
     } catch (e) {
+        pendingChanges = hasDirtySyncState();
         autoSyncRetries++;
         if (autoSyncRetries <= 2) {
             // Release the lock during back-off so the realtime listener can
             // still apply remote updates that arrive while we wait.
             syncBusy = false;
-            setTimeout(function () {
-                doAutoSave();
-            }, autoSyncRetries * 3000);
+            scheduleAutoSync(autoSyncRetries * 3000);
             return;
         }
+        logSyncEvent("auto", "error", {
+            message: e && e.message ? e.message : String(e),
+            dirtyKeys: getDirtySyncKeys()
+        });
+        setSyncIcon("error");
         autoSyncRetries = 0;
     }
     syncBusy = false;
