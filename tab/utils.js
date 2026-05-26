@@ -99,7 +99,6 @@ function primeLocalUrlInput(localInput, syncedUrl, storedLocalUrl) {
 
 function syncLocalUrlInputWithRemote(remoteInput, localInput) {
   if (!remoteInput || !localInput) return;
-  updateLocalUrlInputManualState(localInput, remoteInput.value);
   if (localInput.dataset.manualEdit) return;
   localInput.value = typeof remoteInput.value === "string" ? remoteInput.value.trim() : "";
 }
