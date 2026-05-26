@@ -1,4 +1,9 @@
-importScripts('../tab/utils.js');
+importScripts(
+    '../tab/utils.js',
+    '../tab/utils-favicon-cache.js',
+    '../tab/utils-favicon-fetch.js',
+    '../tab/utils-favicon-render.js'
+);
 
 function getTrackedFaviconUrl(url, cb) {
     if (typeof cb !== "function") return;
