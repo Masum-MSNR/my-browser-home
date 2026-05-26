@@ -41,11 +41,12 @@ function imageToDataUrl(img) {
   return canvas.toDataURL("image/png");
 }
 
-async function fetchFaviconDataUrl(sourceUrl) {
+async function fetchFaviconDataUrl(sourceUrl, options) {
+  var forceRefresh = !!(options && options.forceRefresh);
   var fetchError = null;
 
   try {
-    var response = await fetch(sourceUrl, { cache: "force-cache" });
+    var response = await fetch(sourceUrl, { cache: forceRefresh ? "no-store" : "force-cache" });
     if (!response.ok) throw new Error("Failed to fetch favicon");
     var contentType = response.headers.get("content-type") || "image/png";
     var buffer = await response.arrayBuffer();
@@ -102,7 +103,7 @@ function primeFaviconCache(url, sourceUrl, realUrl, options) {
     promise: null
   };
 
-  requestState.promise = fetchFaviconDataUrl(sourceUrl)
+  requestState.promise = fetchFaviconDataUrl(sourceUrl, { forceRefresh: forceRefresh })
     .then(function (dataUrl) {
       if (pendingFaviconCacheRequests[cacheKey] !== requestState) return dataUrl;
       mergeStoredFaviconEntry(url, realUrl
