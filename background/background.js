@@ -5,6 +5,40 @@ importScripts(
     '../tab/utils-favicon-render.js'
 );
 
+var trackedFaviconUrlsByTabId = {};
+
+function mergeTrackedFaviconUrlLists(left, right) {
+    var merged = [];
+    var seen = {};
+    var lists = [left, right];
+
+    for (var i = 0; i < lists.length; i++) {
+        var list = Array.isArray(lists[i]) ? lists[i] : [];
+        for (var j = 0; j < list.length; j++) {
+            if (!list[j] || seen[list[j]]) continue;
+            seen[list[j]] = true;
+            merged.push(list[j]);
+        }
+    }
+
+    return merged;
+}
+
+function rememberTrackedFaviconUrlsForTab(tabId, trackedUrls) {
+    if (typeof tabId !== "number" || !Array.isArray(trackedUrls) || trackedUrls.length === 0) return;
+    trackedFaviconUrlsByTabId[tabId] = mergeTrackedFaviconUrlLists(trackedFaviconUrlsByTabId[tabId], trackedUrls);
+}
+
+function getRememberedTrackedFaviconUrlsForTab(tabId) {
+    if (typeof tabId !== "number") return [];
+    return Array.isArray(trackedFaviconUrlsByTabId[tabId]) ? trackedFaviconUrlsByTabId[tabId].slice() : [];
+}
+
+function clearRememberedTrackedFaviconUrlsForTab(tabId) {
+    if (typeof tabId !== "number") return;
+    delete trackedFaviconUrlsByTabId[tabId];
+}
+
 function getTrackedFaviconMatchInfo(url) {
     var normalizedUrl = typeof normalizeFaviconUrl === "function" ? normalizeFaviconUrl(url) : "";
     if (!normalizedUrl) return null;
@@ -112,11 +146,19 @@ function getTrackedFaviconUrls(url, cb) {
     });
 }
 
-function storeTabFaviconCache(tab) {
+function getTrackedFaviconUrlsForTab(tabId, url, cb) {
+    if (typeof cb !== "function") return;
+    var rememberedTrackedUrls = getRememberedTrackedFaviconUrlsForTab(tabId);
+    getTrackedFaviconUrls(url, function (trackedUrls) {
+        cb(mergeTrackedFaviconUrlLists(rememberedTrackedUrls, trackedUrls));
+    });
+}
+
+function storeTabFaviconCache(tab, tabId) {
     if (!tab || !tab.url) return;
     // Only cache for real http(s) pages — skip chrome://, file://, etc.
     if (!/^https?:\/\//i.test(tab.url)) return;
-    getTrackedFaviconUrls(tab.url, function (trackedUrls) {
+    getTrackedFaviconUrlsForTab(tabId, tab.url, function (trackedUrls) {
         if (!Array.isArray(trackedUrls) || trackedUrls.length === 0) return;
 
         var hasRealFavicon = !!(tab.favIconUrl && (typeof isFallbackFaviconUrl !== "function" || !isFallbackFaviconUrl(tab.favIconUrl)));
@@ -152,34 +194,50 @@ function storeTabFaviconCache(tab) {
                 primeFaviconCache(trackedUrl, tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
             }
         }
+
+        clearRememberedTrackedFaviconUrlsForTab(tabId);
     });
 }
 
-function maybeStoreUpdatedFavicon(changeInfo, tab) {
+function maybeStoreUpdatedFavicon(tabId, changeInfo, tab) {
     if (!tab) return;
     if (changeInfo && changeInfo.favIconUrl) {
         storeTabFaviconCache({
             url: tab.url,
             favIconUrl: changeInfo.favIconUrl,
             title: tab.title || tab.url
-        });
+        }, tabId);
         return;
     }
     if (changeInfo && changeInfo.status === "complete" && tab.favIconUrl) {
-        storeTabFaviconCache(tab);
+        storeTabFaviconCache(tab, tabId);
     }
 }
 
 chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
-    maybeStoreUpdatedFavicon(changeInfo, tab);
+    if (changeInfo && changeInfo.status === "loading") {
+        clearRememberedTrackedFaviconUrlsForTab(tabId);
+    }
+
+    if (changeInfo && changeInfo.url) {
+        getTrackedFaviconUrls(changeInfo.url, function (trackedUrls) {
+            rememberTrackedFaviconUrlsForTab(tabId, trackedUrls);
+        });
+    }
+
+    maybeStoreUpdatedFavicon(tabId, changeInfo, tab);
 });
 
 chrome.webNavigation.onCompleted.addListener(function (details) {
     if (details.frameId !== 0) return;
     var tabId = details.tabId;
     chrome.tabs.get(tabId, function (tab) {
-        storeTabFaviconCache(tab);
+        storeTabFaviconCache(tab, tabId);
     });
+});
+
+chrome.tabs.onRemoved.addListener(function (tabId) {
+    clearRememberedTrackedFaviconUrlsForTab(tabId);
 });
 
 var CLIENT_ID = "692720523871-cd6v5ba5ancrjj92iljqhhcr7vrbl8sn.apps.googleusercontent.com";

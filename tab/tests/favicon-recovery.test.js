@@ -91,6 +91,7 @@ function createBackgroundContext() {
             },
             tabs: {
                 onUpdated: { addListener() {} },
+                onRemoved: { addListener() {} },
                 get(_tabId, _cb) {}
             },
             webNavigation: {
@@ -139,4 +140,16 @@ function createBackgroundContext() {
 
     const mismatchedMatches = backgroundTest.matchTrackedFaviconUrls('https://docs.google.com/spreadsheets/d/demo/edit', ['https://docs.google.com/document/u/0/']);
     assert('background favicon recovery does not cross different app sections on the same origin', mismatchedMatches.length === 0);
+
+    backgroundTest.rememberTrackedFaviconUrlsForTab(17, ['https://1drv.ms/x/c/demo-share-link']);
+    const redirectedMatches = await new Promise(function (resolve) {
+        backgroundTest.getTrackedFaviconUrlsForTab(17, 'https://excel.officeapps.live.com/x/_layouts/xlviewerinternal.aspx?id=demo', resolve);
+    });
+    assert('background favicon recovery preserves tracked source URLs across cross-origin redirects in the same tab', redirectedMatches.length === 1 && redirectedMatches[0] === 'https://1drv.ms/x/c/demo-share-link');
+
+    backgroundTest.clearRememberedTrackedFaviconUrlsForTab(17);
+    const clearedMatches = await new Promise(function (resolve) {
+        backgroundTest.getTrackedFaviconUrlsForTab(17, 'https://excel.officeapps.live.com/x/_layouts/xlviewerinternal.aspx?id=demo', resolve);
+    });
+    assert('background favicon redirect memory clears after navigation completes', clearedMatches.length === 0);
 })();
