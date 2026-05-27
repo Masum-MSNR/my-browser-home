@@ -68,17 +68,42 @@ async function renderMailList() {
     mails.forEach(function (m, idx) { addMailItem(m, idx); });
 }
 
-function createServiceLink(href, title, iconClass) {
+function createGeminiServiceIcon() {
+    var svgNs = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNs, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("class", "service-icon-svg");
+    svg.setAttribute("aria-hidden", "true");
+
+    var path = document.createElementNS(svgNs, "path");
+    path.setAttribute("fill", "currentColor");
+    path.setAttribute("d", "M12 2.5 14.45 9.55 21.5 12 14.45 14.45 12 21.5 9.55 14.45 2.5 12 9.55 9.55Z");
+    svg.appendChild(path);
+
+    return svg;
+}
+
+function createServiceLink(serviceKey, href, title, iconClass) {
     const link = document.createElement("a");
-    link.className = "service-link";
+    link.className = "service-link service-link-" + serviceKey;
     link.href = href;
     link.title = title;
     link.target = "_blank";
+    link.rel = "noreferrer";
 
-    const icon = document.createElement("i");
-    icon.className = iconClass;
-    icon.setAttribute("aria-hidden", "true");
-    link.appendChild(icon);
+    const iconWrap = document.createElement("span");
+    iconWrap.className = "service-icon service-icon-" + serviceKey;
+
+    if (serviceKey === "gemini") {
+        iconWrap.appendChild(createGeminiServiceIcon());
+    } else {
+        const icon = document.createElement("i");
+        icon.className = iconClass;
+        icon.setAttribute("aria-hidden", "true");
+        iconWrap.appendChild(icon);
+    }
+
+    link.appendChild(iconWrap);
     return link;
 }
 
@@ -227,23 +252,13 @@ function addMailItem({ email, name, image }, idx) {
 
     const prefix = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=`;
 
-    services.appendChild(createServiceLink(prefix + "https://mail.google.com", "Gmail", "fas fa-envelope"));
-    services.appendChild(createServiceLink(prefix + "https://drive.google.com/drive/my-drive", "Drive", "fab fa-google-drive"));
-    services.appendChild(createServiceLink(prefix + "https://meet.google.com", "Meet", "fas fa-video"));
-    services.appendChild(createServiceLink(prefix + "https://docs.google.com/document/u/0/", "Docs", "fas fa-file-alt"));
-    services.appendChild(createServiceLink(prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets", "fas fa-table"));
-
-    const cloudLink = document.createElement("a");
-    cloudLink.className = "service-link";
-    cloudLink.href = prefix + "https://console.cloud.google.com/";
-    cloudLink.title = "Cloud";
-    cloudLink.target = "_blank";
-
-    const cloudIcon = document.createElement("i");
-    cloudIcon.className = "fas fa-cloud";
-
-    cloudLink.appendChild(cloudIcon);
-    services.appendChild(cloudLink);
+    services.appendChild(createServiceLink("gmail", prefix + "https://mail.google.com", "Gmail", "fas fa-envelope"));
+    services.appendChild(createServiceLink("drive", prefix + "https://drive.google.com/drive/my-drive", "Drive", "fab fa-google-drive"));
+    services.appendChild(createServiceLink("meet", prefix + "https://meet.google.com", "Meet", "fas fa-video"));
+    services.appendChild(createServiceLink("docs", prefix + "https://docs.google.com/document/u/0/", "Docs", "fas fa-file-alt"));
+    services.appendChild(createServiceLink("sheets", prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets", "fas fa-table"));
+    services.appendChild(createServiceLink("gemini", prefix + "https://gemini.google.com/app", "Gemini", ""));
+    services.appendChild(createServiceLink("cloud", prefix + "https://console.cloud.google.com/", "Cloud", "fas fa-cloud"));
 
     info.appendChild(nameEl);
     info.appendChild(emailEl);
