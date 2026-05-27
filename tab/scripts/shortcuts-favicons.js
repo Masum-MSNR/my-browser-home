@@ -1,4 +1,7 @@
-renderShortcuts().then(refreshShortcutFavicons);
+renderShortcuts().then(async function () {
+  refreshShortcutFavicons();
+  await backfillShortcutFaviconsFromCache();
+});
 
 window.addEventListener("syncdataloaded", async function (event) {
   var detail = event && event.detail ? event.detail : null;
@@ -8,6 +11,7 @@ window.addEventListener("syncdataloaded", async function (event) {
 
   await renderShortcuts();
   refreshShortcutFavicons();
+  await backfillShortcutFaviconsFromCache();
 });
 
 // === Live favicon refresh for shortcuts ===
@@ -27,13 +31,33 @@ async function persistShortcutFavicon(shortcutId, realUrl) {
   if (changed) await setShortcuts(all);
 }
 
+async function backfillShortcutFaviconsFromCache(targetCacheKey) {
+  if (typeof collectCachedFaviconBackfillUpdates !== "function" || typeof applyCachedFaviconBackfillUpdates !== "function") {
+    return false;
+  }
+
+  var all = await getShortcuts();
+  if (!Array.isArray(all) || all.length === 0) return false;
+
+  var localLinks = await getShortcutLocalLinks();
+  var updates = await collectCachedFaviconBackfillUpdates(all, localLinks, targetCacheKey);
+  if (!updates.length) return false;
+
+  if (!applyCachedFaviconBackfillUpdates(all, updates)) return false;
+  await setShortcuts(all);
+  return true;
+}
+
 function refreshShortcutFavicons() {
   var items = shortcutList.querySelectorAll(".shortcut-item a");
   for (var i = 0; i < items.length; i++) {
     var img = items[i].querySelector(".shortcut-icon");
     var href = items[i].getAttribute("href");
+    var shortcutId = items[i].dataset.shortcutId || "";
     if (img && href) {
-      refreshFaviconFromCache(img, href);
+      refreshFaviconFromCache(img, href, shortcutId ? function (realUrl) {
+        persistShortcutFavicon(shortcutId, realUrl);
+      } : null);
     }
   }
 }
@@ -72,12 +96,16 @@ window.addEventListener("syncitemmetaupdated", async function (event) {
 
   await refreshRenderedShortcutIcons();
   refreshShortcutFavicons();
+  await backfillShortcutFaviconsFromCache();
 });
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
   if (areaName !== "local") return;
   if (typeof SHORTCUT_LOCAL_LINKS_STORAGE_KEY !== "undefined" && changes[SHORTCUT_LOCAL_LINKS_STORAGE_KEY]) {
-    renderShortcuts().then(refreshShortcutFavicons);
+    renderShortcuts().then(async function () {
+      refreshShortcutFavicons();
+      await backfillShortcutFaviconsFromCache();
+    });
     return;
   }
   var updatedKey = null;
@@ -105,4 +133,7 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
       }
     }
   }
+  (async function () {
+    await backfillShortcutFaviconsFromCache(updatedKey);
+  })();
 });

@@ -287,6 +287,23 @@ async function persistBookmarkFavicon(bookmarkId, realUrl) {
     if (changed) await setBookmarks(all);
 }
 
+async function backfillBookmarkFaviconsFromCache(targetCacheKey) {
+    if (typeof collectCachedFaviconBackfillUpdates !== "function" || typeof applyCachedFaviconBackfillUpdates !== "function") {
+        return false;
+    }
+
+    var all = await getBookmarks();
+    if (!Array.isArray(all) || all.length === 0) return false;
+
+    var localLinks = await getBookmarkLocalLinks();
+    var updates = await collectCachedFaviconBackfillUpdates(all, localLinks, targetCacheKey);
+    if (!updates.length) return false;
+
+    if (!applyCachedFaviconBackfillUpdates(all, updates)) return false;
+    await setBookmarks(all);
+    return true;
+}
+
 async function fetchBookmarkFaviconOnSave(bookmarkId) {
     if (!bookmarkId || typeof requestFaviconCacheRefresh !== "function") return;
 

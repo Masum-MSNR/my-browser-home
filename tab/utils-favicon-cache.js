@@ -24,6 +24,64 @@ function getStoredRealFaviconUrl(entry) {
   return entry && entry.favicon && !isFallbackFaviconUrl(entry.favicon) ? entry.favicon : "";
 }
 
+function resolveTrackedItemFaviconUrl(item, localLinks) {
+  if (!item) return "";
+  if (typeof getResolvedItemUrl === "function") {
+    return getResolvedItemUrl(item, localLinks) || item.url || "";
+  }
+  return item.url || "";
+}
+
+async function collectCachedFaviconBackfillUpdates(items, localLinks, targetCacheKey) {
+  var updates = [];
+  if (!Array.isArray(items)) return updates;
+
+  for (var i = 0; i < items.length; i++) {
+    var item = items[i];
+    if (!item || !item.id) continue;
+
+    var effectiveUrl = resolveTrackedItemFaviconUrl(item, localLinks);
+    if (!effectiveUrl) continue;
+
+    if (targetCacheKey && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(effectiveUrl) !== targetCacheKey) {
+      continue;
+    }
+
+    var entry = await getStoredFaviconEntry(effectiveUrl);
+    var realUrl = getStoredRealFaviconUrl(entry);
+    if (!realUrl || item.favicon === realUrl) continue;
+
+    updates.push({
+      id: item.id,
+      favicon: realUrl
+    });
+  }
+
+  return updates;
+}
+
+function applyCachedFaviconBackfillUpdates(items, updates, updatedAt) {
+  if (!Array.isArray(items) || !Array.isArray(updates) || updates.length === 0) return false;
+
+  var updatesById = {};
+  for (var i = 0; i < updates.length; i++) {
+    if (!updates[i] || !updates[i].id || !updates[i].favicon) continue;
+    updatesById[updates[i].id] = updates[i].favicon;
+  }
+
+  var nextUpdatedAt = updatedAt || Date.now();
+  var changed = false;
+  for (var j = 0; j < items.length; j++) {
+    var item = items[j];
+    if (!item || !item.id || !updatesById[item.id] || item.favicon === updatesById[item.id]) continue;
+    item.favicon = updatesById[item.id];
+    item.updatedAt = nextUpdatedAt;
+    changed = true;
+  }
+
+  return changed;
+}
+
 function shouldRepairStoredFaviconEntry(url, entry) {
   if (!url || !entry || hasFaviconFailure(url)) return false;
 

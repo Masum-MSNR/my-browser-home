@@ -171,6 +171,7 @@ window.addEventListener("syncitemmetaupdated", async function (event) {
 
     await refreshRenderedBookmarkIcons();
     refreshAllFaviconsFromCache();
+    await backfillBookmarkFaviconsFromCache();
 });
 
 chrome.storage.onChanged.addListener(function (changes, areaName) {
@@ -180,6 +181,7 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
             await renderBookmarkBar();
             if (bookmarkDropdown.classList.contains("open")) renderBookmarkDropdown();
             refreshAllFaviconsFromCache();
+            await backfillBookmarkFaviconsFromCache();
         })();
         return;
     }
@@ -218,6 +220,9 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
             refreshFaviconFromCache(subImg, subItems[k].href, subItems[k].dataset.bmId ? bmFaviconCb(subItems[k].dataset.bmId) : null);
         }
     }
+    (async function () {
+        await backfillBookmarkFaviconsFromCache(updatedKey);
+    })();
 });
 
 // === Init ===
@@ -233,6 +238,7 @@ window.addEventListener("syncdataloaded", async function (event) {
     await repairBookmarkHierarchy();
     await renderBookmarkBar();
     refreshAllFaviconsFromCache();
+    await backfillBookmarkFaviconsFromCache();
 });
 
 (async function initBookmarks() {
@@ -243,4 +249,5 @@ window.addEventListener("syncdataloaded", async function (event) {
     await repairBookmarkHierarchy();
     await renderBookmarkBar();
     refreshAllFaviconsFromCache();
+    await backfillBookmarkFaviconsFromCache();
 })();

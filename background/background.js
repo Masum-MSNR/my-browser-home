@@ -5,11 +5,69 @@ importScripts(
     '../tab/utils-favicon-render.js'
 );
 
-function getTrackedFaviconUrl(url, cb) {
+function getTrackedFaviconMatchInfo(url) {
+    var normalizedUrl = typeof normalizeFaviconUrl === "function" ? normalizeFaviconUrl(url) : "";
+    if (!normalizedUrl) return null;
+
+    try {
+        var parsed = new URL(normalizedUrl);
+        var pathname = parsed.pathname || "/";
+        var segments = pathname.split("/").filter(Boolean);
+        return {
+            normalizedUrl: normalizedUrl,
+            canonicalUrl: parsed.origin + pathname,
+            origin: parsed.origin,
+            firstPathSegment: segments.length > 0 ? segments[0] : ""
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+function matchTrackedFaviconUrls(url, trackedUrls) {
+    var target = getTrackedFaviconMatchInfo(url);
+    if (!target || !Array.isArray(trackedUrls) || trackedUrls.length === 0) return [];
+
+    var exactMatches = [];
+    var canonicalMatches = [];
+    var scopedMatches = [];
+    var seen = {};
+
+    function addMatch(bucket, matchedUrl) {
+        if (!matchedUrl || seen[matchedUrl]) return;
+        bucket.push(matchedUrl);
+        seen[matchedUrl] = true;
+    }
+
+    for (var i = 0; i < trackedUrls.length; i++) {
+        var tracked = getTrackedFaviconMatchInfo(trackedUrls[i]);
+        if (!tracked) continue;
+
+        if (tracked.normalizedUrl === target.normalizedUrl) {
+            addMatch(exactMatches, tracked.normalizedUrl);
+            continue;
+        }
+
+        if (tracked.canonicalUrl === target.canonicalUrl) {
+            addMatch(canonicalMatches, tracked.normalizedUrl);
+            continue;
+        }
+
+        if (tracked.origin === target.origin && tracked.firstPathSegment && tracked.firstPathSegment === target.firstPathSegment) {
+            addMatch(scopedMatches, tracked.normalizedUrl);
+        }
+    }
+
+    if (exactMatches.length > 0) return exactMatches;
+    if (canonicalMatches.length > 0) return canonicalMatches;
+    return scopedMatches;
+}
+
+function getTrackedFaviconUrls(url, cb) {
     if (typeof cb !== "function") return;
     var normalizedUrl = typeof normalizeFaviconUrl === "function" ? normalizeFaviconUrl(url) : "";
     if (!normalizedUrl) {
-        cb(null);
+        cb([]);
         return;
     }
 
@@ -19,7 +77,8 @@ function getTrackedFaviconUrl(url, cb) {
         SHORTCUT_LOCAL_LINKS_STORAGE_KEY,
         BOOKMARK_LOCAL_LINKS_STORAGE_KEY
     ], function (result) {
-        var trackedUrls = {};
+        var trackedUrls = [];
+        var trackedUrlSet = {};
         var shortcuts = result && Array.isArray(result.shortcuts) ? result.shortcuts : [];
         var bookmarks = result && Array.isArray(result.bookmarks) ? result.bookmarks : [];
         var shortcutLocalLinks = typeof normalizeLocalLinkMap === "function"
@@ -32,7 +91,9 @@ function getTrackedFaviconUrl(url, cb) {
         function addTrackedUrl(value) {
             if (!value || typeof normalizeFaviconUrl !== "function") return;
             var trackedUrl = normalizeFaviconUrl(value);
-            if (trackedUrl) trackedUrls[trackedUrl] = true;
+            if (!trackedUrl || trackedUrlSet[trackedUrl]) return;
+            trackedUrlSet[trackedUrl] = true;
+            trackedUrls.push(trackedUrl);
         }
 
         function addTrackedUrls(items, localLinks) {
@@ -47,7 +108,7 @@ function getTrackedFaviconUrl(url, cb) {
 
         addTrackedUrls(shortcuts, shortcutLocalLinks);
         addTrackedUrls(bookmarks, bookmarkLocalLinks);
-        cb(trackedUrls[normalizedUrl] ? normalizedUrl : null);
+        cb(matchTrackedFaviconUrls(normalizedUrl, trackedUrls));
     });
 }
 
@@ -55,34 +116,41 @@ function storeTabFaviconCache(tab) {
     if (!tab || !tab.url) return;
     // Only cache for real http(s) pages — skip chrome://, file://, etc.
     if (!/^https?:\/\//i.test(tab.url)) return;
-    getTrackedFaviconUrl(tab.url, function (trackedUrl) {
-        if (!trackedUrl) return;
+    getTrackedFaviconUrls(tab.url, function (trackedUrls) {
+        if (!Array.isArray(trackedUrls) || trackedUrls.length === 0) return;
 
         var hasRealFavicon = !!(tab.favIconUrl && (typeof isFallbackFaviconUrl !== "function" || !isFallbackFaviconUrl(tab.favIconUrl)));
         if (!hasRealFavicon) {
-            if (typeof getStoredFaviconEntry === "function") {
-                getStoredFaviconEntry(trackedUrl).then(function (entry) {
-                    if (!entry && typeof ensureDefaultFaviconEntry === "function") {
+            for (var i = 0; i < trackedUrls.length; i++) {
+                (function (trackedUrl) {
+                    if (typeof getStoredFaviconEntry === "function") {
+                        getStoredFaviconEntry(trackedUrl).then(function (entry) {
+                            if (!entry && typeof ensureDefaultFaviconEntry === "function") {
+                                ensureDefaultFaviconEntry(trackedUrl);
+                            }
+                        });
+                    } else if (typeof ensureDefaultFaviconEntry === "function") {
                         ensureDefaultFaviconEntry(trackedUrl);
                     }
-                });
-            } else if (typeof ensureDefaultFaviconEntry === "function") {
-                ensureDefaultFaviconEntry(trackedUrl);
+                })(trackedUrls[i]);
             }
             return;
         }
 
-        if (typeof mergeStoredFaviconEntry === "function") {
-            mergeStoredFaviconEntry(trackedUrl, {
-                favicon: tab.favIconUrl,
-                title: tab.title || tab.url,
-                visitedUrl: trackedUrl,
-                updatedAt: Date.now()
-            });
-        }
+        for (var j = 0; j < trackedUrls.length; j++) {
+            var trackedUrl = trackedUrls[j];
+            if (typeof mergeStoredFaviconEntry === "function") {
+                mergeStoredFaviconEntry(trackedUrl, {
+                    favicon: tab.favIconUrl,
+                    title: tab.title || tab.url,
+                    visitedUrl: trackedUrl,
+                    updatedAt: Date.now()
+                });
+            }
 
-        if (typeof primeFaviconCache === "function") {
-            primeFaviconCache(trackedUrl, tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
+            if (typeof primeFaviconCache === "function") {
+                primeFaviconCache(trackedUrl, tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
+            }
         }
     });
 }
