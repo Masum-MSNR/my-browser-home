@@ -24,6 +24,7 @@ function createContext() {
         Buffer,
         DEFAULT_FAVICON: 'data:default',
         pendingFaviconCacheRequests: {},
+        document: {},
         localStorage: {
             getItem() { return null; },
             setItem() {},
@@ -97,4 +98,9 @@ function createContext() {
 
     assert('forced favicon refresh bypasses browser cache', test.fetchCalls[1] && test.fetchCalls[1].options.cache === 'no-store');
     assert('forced favicon refresh replaces stale cached data url', cached && /bmV3$/.test(cached.faviconDataUrl));
+
+    const noRealUrlTest = createContext();
+    const fallbackOnlyResult = await noRealUrlTest.context.requestFaviconCacheRefresh('https://1drv.ms/x/c/demo-share-link', null);
+    assert('save-time favicon refresh does not fetch speculative fallback icons when no real favicon has been observed', noRealUrlTest.fetchCalls.length === 0);
+    assert('save-time favicon refresh falls back to default when no real favicon has been observed', fallbackOnlyResult && fallbackOnlyResult.realUrl === 'data:default');
 })();

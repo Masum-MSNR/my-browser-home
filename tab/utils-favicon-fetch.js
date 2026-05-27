@@ -148,11 +148,7 @@ async function requestFaviconCacheRefresh(url, storedFavicon) {
     };
   }
 
-  var sourceUrl = realUrl || getPageFaviconSourceUrl(url);
-  if (!sourceUrl) sourceUrl = realUrl;
-  if (!sourceUrl && typeof getExtensionFaviconUrl === "function") {
-    sourceUrl = getExtensionFaviconUrl(url, 32);
-  }
+  var sourceUrl = realUrl || null;
 
   if (!sourceUrl) {
     var defaultEntry = ensureDefaultFaviconEntry(url);

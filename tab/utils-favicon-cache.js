@@ -88,17 +88,26 @@ function shouldRepairStoredFaviconEntry(url, entry) {
     return !entry.faviconDataUrl || entry.faviconDataUrl === DEFAULT_FAVICON || entry.faviconDataUrlSource !== realUrl;
   }
 
-  return entry.faviconDataUrl === DEFAULT_FAVICON;
+  return false;
 }
 
 function sanitizeStoredFaviconEntry(url, entry) {
   if (!entry || typeof entry !== "object") return null;
 
   var next = Object.assign({}, entry);
+  var realUrl = getStoredRealFaviconUrl(next);
   if (next.faviconDataUrl && !isCachedFaviconDataUrl(next.faviconDataUrl)) {
     reportHandledIssue("favicon-cache-sanitize", "Dropped stale favicon cache entry", {
       url: url || next.url || "",
       sourceUrl: next.faviconDataUrl
+    });
+    next.faviconDataUrl = DEFAULT_FAVICON;
+  }
+
+  if (!realUrl && next.faviconDataUrl && next.faviconDataUrl !== DEFAULT_FAVICON && next.faviconDataUrlSource && isFallbackFaviconUrl(next.faviconDataUrlSource)) {
+    reportHandledIssue("favicon-cache-sanitize", "Dropped speculative favicon cache entry", {
+      url: url || next.url || "",
+      sourceUrl: next.faviconDataUrlSource
     });
     next.faviconDataUrl = DEFAULT_FAVICON;
   }
