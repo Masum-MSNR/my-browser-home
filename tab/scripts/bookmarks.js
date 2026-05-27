@@ -276,10 +276,6 @@ async function getAllBookmarksInFolder(folderId) {
 }
 
 // === Bar rendering ===
-async function persistBookmarkFavicon(bookmarkId, realUrl) {
-    return { bookmarkId: bookmarkId, realUrl: realUrl };
-}
-
 async function backfillBookmarkFaviconsFromCache() {
     if (typeof captureMissingSavedItemFavicons !== "function") return false;
     return (await captureMissingSavedItemFavicons("bookmark")) > 0;
