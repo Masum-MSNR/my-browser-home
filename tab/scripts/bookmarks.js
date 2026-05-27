@@ -29,6 +29,10 @@ async function setBookmarks(val) {
     if (typeof autoSync === "function") autoSync();
 }
 
+async function setBookmarksLocalOnly(val) {
+    await syncSet({ bookmarks: val });
+}
+
 async function getBookmarkLocalLinks() {
     return typeof readLocalLinkMap === "function" ? await readLocalLinkMap("bookmarks") : {};
 }
@@ -280,11 +284,10 @@ async function persistBookmarkFavicon(bookmarkId, realUrl) {
     for (var i = 0; i < all.length; i++) {
         if (all[i] && all[i].id === bookmarkId && all[i].favicon !== realUrl) {
             all[i].favicon = realUrl;
-            all[i].updatedAt = Date.now();
             changed = true;
         }
     }
-    if (changed) await setBookmarks(all);
+    if (changed) await setBookmarksLocalOnly(all);
 }
 
 async function backfillBookmarkFaviconsFromCache(targetCacheKey) {
@@ -300,7 +303,7 @@ async function backfillBookmarkFaviconsFromCache(targetCacheKey) {
     if (!updates.length) return false;
 
     if (!applyCachedFaviconBackfillUpdates(all, updates)) return false;
-    await setBookmarks(all);
+    await setBookmarksLocalOnly(all);
     return true;
 }
 
@@ -332,8 +335,7 @@ async function fetchBookmarkFaviconOnSave(bookmarkId) {
     if (!nextFavicon || bookmark.favicon === nextFavicon) return;
 
     bookmark.favicon = nextFavicon;
-    bookmark.updatedAt = Date.now();
-    await setBookmarks(all);
+    await setBookmarksLocalOnly(all);
 }
 
 function bmFaviconCb(bookmarkId) {

@@ -25,6 +25,10 @@ async function setShortcuts(val) {
   if (typeof autoSync === "function") autoSync();
 }
 
+async function setShortcutsLocalOnly(val) {
+  await syncSet({ shortcuts: val });
+}
+
 async function getShortcutLocalLinks() {
   return typeof readLocalLinkMap === "function" ? await readLocalLinkMap("shortcuts") : {};
 }
@@ -67,8 +71,7 @@ async function fetchShortcutFaviconOnSave(shortcutId) {
   if (!nextFavicon || shortcut.favicon === nextFavicon) return;
 
   shortcut.favicon = nextFavicon;
-  shortcut.updatedAt = Date.now();
-  await setShortcuts(all);
+  await setShortcutsLocalOnly(all);
 }
 
 async function renderShortcuts() {

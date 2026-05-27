@@ -60,7 +60,7 @@ async function collectCachedFaviconBackfillUpdates(items, localLinks, targetCach
   return updates;
 }
 
-function applyCachedFaviconBackfillUpdates(items, updates, updatedAt) {
+function applyCachedFaviconBackfillUpdates(items, updates) {
   if (!Array.isArray(items) || !Array.isArray(updates) || updates.length === 0) return false;
 
   var updatesById = {};
@@ -69,13 +69,11 @@ function applyCachedFaviconBackfillUpdates(items, updates, updatedAt) {
     updatesById[updates[i].id] = updates[i].favicon;
   }
 
-  var nextUpdatedAt = updatedAt || Date.now();
   var changed = false;
   for (var j = 0; j < items.length; j++) {
     var item = items[j];
     if (!item || !item.id || !updatesById[item.id] || item.favicon === updatesById[item.id]) continue;
     item.favicon = updatesById[item.id];
-    item.updatedAt = nextUpdatedAt;
     changed = true;
   }
 

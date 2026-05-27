@@ -136,6 +136,51 @@ function getMergedTombstones(localDeleted, remoteDeleted) {
 
 var SYNC_SCHEMA_VERSION = 2;
 var SYNC_COLLECTION_KEYS = ["shortcuts", "bookmarks", "bookmarkFolders"];
+var LOCAL_ONLY_URL_ITEM_FIELDS = ["favicon"];
+
+function stripLocalOnlyUrlItemFields(item) {
+    if (!item || typeof item !== "object") return item;
+    for (var i = 0; i < LOCAL_ONLY_URL_ITEM_FIELDS.length; i++) {
+        delete item[LOCAL_ONLY_URL_ITEM_FIELDS[i]];
+    }
+    return item;
+}
+
+function applyLocalOnlySyncFields(collectionKey, localItems, mergedItems) {
+    if ((collectionKey !== "shortcuts" && collectionKey !== "bookmarks") || !Array.isArray(mergedItems)) {
+        return mergedItems;
+    }
+
+    var localOnlyFieldsById = {};
+    if (Array.isArray(localItems)) {
+        for (var i = 0; i < localItems.length; i++) {
+            var localItem = localItems[i];
+            if (!localItem || !localItem.id) continue;
+
+            var localOnlyFields = {};
+            for (var j = 0; j < LOCAL_ONLY_URL_ITEM_FIELDS.length; j++) {
+                var fieldName = LOCAL_ONLY_URL_ITEM_FIELDS[j];
+                if (localItem[fieldName] !== undefined) localOnlyFields[fieldName] = localItem[fieldName];
+            }
+            if (Object.keys(localOnlyFields).length > 0) {
+                localOnlyFieldsById[localItem.id] = localOnlyFields;
+            }
+        }
+    }
+
+    for (var k = 0; k < mergedItems.length; k++) {
+        var mergedItem = mergedItems[k];
+        if (!mergedItem || !mergedItem.id || !localOnlyFieldsById[mergedItem.id]) continue;
+
+        var localOnly = localOnlyFieldsById[mergedItem.id];
+        for (var key in localOnly) {
+            if (!localOnly.hasOwnProperty(key)) continue;
+            mergedItem[key] = localOnly[key];
+        }
+    }
+
+    return mergedItems;
+}
 
 function getSyncCollectionConfig(collectionKey) {
     if (collectionKey === "shortcuts") {
@@ -208,6 +253,9 @@ function stableStringifySyncValue(value) {
 function cloneSyncDocForCollection(collectionKey, item) {
     var copy = cloneSyncValue(item) || {};
     if (!copy.id) copy.id = crypto.randomUUID();
+    if (collectionKey === "shortcuts" || collectionKey === "bookmarks") {
+        stripLocalOnlyUrlItemFields(copy);
+    }
     ensureSyncItemOrderKey(copy);
     if (collectionKey === "shortcuts" || collectionKey === "bookmarks") {
         if (copy.position === undefined) copy.position = 0;
@@ -406,6 +454,7 @@ function mergeRemoteSyncCollection(collectionKey, localItems, remoteDocs, localD
     var mergedItems = config.scopeKeyFn
         ? mergeScopedItems(localItems, remoteItems, localDeleted, remoteDeleted, config.isValidItem, config.scopeKeyFn)
         : mergeFlatItems(localItems, remoteItems, localDeleted, remoteDeleted, config.isValidItem);
+    applyLocalOnlySyncFields(collectionKey, localItems, mergedItems);
     return {
         remoteItems: remoteItems,
         remoteDeleted: remoteDeleted,

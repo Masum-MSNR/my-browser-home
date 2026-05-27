@@ -120,10 +120,10 @@ function createBackgroundContext() {
         updatedAt: Date.now()
     };
 
-    const items = [{ id: 'b1', url: bookmarkUrl, favicon: 'data:default' }];
+    const items = [{ id: 'b1', url: bookmarkUrl, favicon: 'data:default', updatedAt: 77 }];
     const updates = await cacheTest.context.collectCachedFaviconBackfillUpdates(items, {});
     assert('cache backfill collects recovered favicon updates', updates.length === 1 && updates[0].favicon === 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico');
-    assert('cache backfill applies recovered favicon updates', cacheTest.context.applyCachedFaviconBackfillUpdates(items, updates, 123) && items[0].favicon === 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico' && items[0].updatedAt === 123);
+    assert('cache backfill applies recovered favicon updates without mutating item revision', cacheTest.context.applyCachedFaviconBackfillUpdates(items, updates) && items[0].favicon === 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico' && items[0].updatedAt === 77);
 
     const backgroundTest = createBackgroundContext();
     const trackedUrls = [

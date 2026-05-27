@@ -24,11 +24,10 @@ async function persistShortcutFavicon(shortcutId, realUrl) {
   for (var i = 0; i < all.length; i++) {
     if (all[i] && all[i].id === shortcutId && all[i].favicon !== realUrl) {
       all[i].favicon = realUrl;
-      all[i].updatedAt = Date.now();
       changed = true;
     }
   }
-  if (changed) await setShortcuts(all);
+  if (changed) await setShortcutsLocalOnly(all);
 }
 
 async function backfillShortcutFaviconsFromCache(targetCacheKey) {
@@ -44,7 +43,7 @@ async function backfillShortcutFaviconsFromCache(targetCacheKey) {
   if (!updates.length) return false;
 
   if (!applyCachedFaviconBackfillUpdates(all, updates)) return false;
-  await setShortcuts(all);
+  await setShortcutsLocalOnly(all);
   return true;
 }
 
