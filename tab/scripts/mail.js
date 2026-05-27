@@ -4,6 +4,10 @@ const mailDropdownList = document.getElementById("mail-dropdown-list");
 const mailDropdownHeader = document.querySelector(".mail-dropdown-header");
 const MAIL_STORAGE_KEY = "mailShortcuts";
 const pendingMailImageRequests = {};
+const MAIL_SERVICE_ICON_OVERRIDES = {
+    docs: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAAAV1BMVEUAAABAgP9DhvVBhvRChfRChfQZZ9FAivRDhfQZZ9JBhvRDhfNChfT///9ChfRChfVChfRChPNDhPRAgO9ChfRChPRAhvJChfRChfVBhfVChfVDhfRAgP9O/W5MAAAAHXRSTlMABGO73/9vGM//v2vv/9fbo4NbEOOzKNN7w/NzCOs5sLwAAAC5SURBVHgB7dS3FUJBFAPRhc8avPf0Xycxkd4ZPGgK0M2U3CfW63eDHKgkVm051hAKoxwFmDDOcQAJXRxgwiQOMCHHASAAQAscQAIAtMABIhBACxgAAgO0AAEgQEALAAACALTAASZwQAkcEAIHmJDvzIABAwYeD0wDGfhSgGfAgL/IgL/IgL/oJgO/AYgMGDBgwIABA7yZBOb5rhYSWOa7Wklgvcl3tE26Xcu4fU2Beofjic2fL+kDc1fZmn1XbYcA1AAAAABJRU5ErkJggg==",
+    sheets: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAMAAADVRocKAAAAWlBMVEUAAABAv0A0p1I0qFMzqFM0qFMXgTc1qlU0qFMYgDg0qFM0p1M0qFP///+Z06k0qFM0qFM0p1M1p1Q1qFQwr1A0qVM1qFMzplM0qFM0qFM0p1I0qFMzqVJAn2C6RdwUAAAAHnRSTlMABGO73/9vGM//v2vv///X26ODWxDjsyjTe8PzcwhvOvRjAAAAv0lEQVR4Ae3TQQIBQQxE0YYUBQAA978my9lNpAWof4G3+uUTU51ur2+OUGINhuaLQWFkzhgTxuaNMaHnB2LCxA/EBHsMILIBIhsgsgEiGyCyASIbILIBIhsgsgEiGyCyASIbILIBIhsg0gC/YJUJECBAwLOBqTMB3w5Yo9n03swaCRBQD2g0AfrgUwEBOllAOAECBAgQIECAv3krsLCqlq3AyqpatwKbrVW0K+3thxbuMCiOOsfT2SIdLtfygakbsF6H8/pufmQAAAAASUVORK5CYII="
+};
 
 function closeDropdown() {
     mailDropdown.classList.remove("open");
@@ -68,7 +72,8 @@ async function renderMailList() {
     mails.forEach(function (m, idx) { addMailItem(m, idx); });
 }
 
-function buildMailServiceIconSrc(url) {
+function buildMailServiceIconSrc(serviceKey, url) {
+    if (MAIL_SERVICE_ICON_OVERRIDES[serviceKey]) return MAIL_SERVICE_ICON_OVERRIDES[serviceKey];
     return "/_favicon/?pageUrl=" + encodeURIComponent(url) + "&size=32";
 }
 
@@ -83,7 +88,7 @@ function createServiceLink(serviceKey, href, title, targetUrl) {
 
     const img = document.createElement("img");
     img.className = "service-icon-image service-icon-" + serviceKey;
-    img.src = buildMailServiceIconSrc(targetUrl);
+    img.src = buildMailServiceIconSrc(serviceKey, targetUrl);
     img.alt = "";
     img.loading = "lazy";
     img.decoding = "async";
