@@ -292,7 +292,7 @@ async function renderBookmarkList() {
     }
 
     for (var f = 0; f < levelFolders.length; f++) {
-        list.appendChild(createFolderItem(levelFolders[f], f));
+        list.appendChild(createFolderItem(levelFolders[f], f, folders, all, localLinks));
     }
     if (levelFolders.length > 0 && levelBookmarks.length > 0) {
         var sep = document.createElement("div");
@@ -304,7 +304,7 @@ async function renderBookmarkList() {
     }
 }
 
-function createFolderItem(folder, idx) {
+function createFolderItem(folder, idx, allFolders, allBookmarks, localLinks) {
     var item = document.createElement("div");
     item.className = "bm-folder-item";
     item.draggable = true;
@@ -327,7 +327,17 @@ function createFolderItem(folder, idx) {
     actions.appendChild(delBtn);
     item.appendChild(actions);
 
+    item.addEventListener("mousedown", function (e) {
+        if (e.button === 1) e.preventDefault();
+    });
     item.addEventListener("click", function () { navigateTo(folder.id); });
+    item.addEventListener("auxclick", function (e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openFolderBookmarksSnapshotInNewTabs(folder.id, allFolders, allBookmarks, localLinks);
+        closeBookmarkDropdown();
+    });
     wireDropdownDragReorder(item, "folder", idx);
     return item;
 }
@@ -355,10 +365,21 @@ function createBookmarkItem(bm, idx, localLinks) {
     var actions = document.createElement("div");
     actions.className = "bm-dl-actions";
 
+    item.addEventListener("mousedown", function (e) {
+        if (e.button === 1) e.preventDefault();
+    });
+
     // Click bookmark → close dialog, open in same tab
     item.addEventListener("click", function () {
         closeBookmarkDropdown();
         window.location.href = effectiveUrl || bm.url;
+    });
+    item.addEventListener("auxclick", function (e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeBookmarkDropdown();
+        openBookmarkInNewTab(bm, localLinks);
     });
 
     var editBtn = document.createElement("button");

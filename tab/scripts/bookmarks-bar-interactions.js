@@ -1,3 +1,69 @@
+function getBookmarkOpenUrl(bookmark, localLinks) {
+    if (!bookmark) return "";
+    return typeof getResolvedItemUrl === "function"
+        ? (getResolvedItemUrl(bookmark, localLinks) || "")
+        : (bookmark.url || "");
+}
+
+function collectBookmarksInFolderSnapshot(folderId, allFolders, allBookmarks) {
+    if (!folderId || !Array.isArray(allFolders) || !Array.isArray(allBookmarks)) return [];
+
+    var result = [];
+    var pendingFolderIds = [folderId];
+    while (pendingFolderIds.length > 0) {
+        var currentFolderId = pendingFolderIds.shift();
+        for (var i = 0; i < allBookmarks.length; i++) {
+            if (allBookmarks[i] && (allBookmarks[i].folderId || null) === currentFolderId) {
+                result.push(allBookmarks[i]);
+            }
+        }
+        for (var j = 0; j < allFolders.length; j++) {
+            if (allFolders[j] && (allFolders[j].parentId || null) === currentFolderId) {
+                pendingFolderIds.push(allFolders[j].id);
+            }
+        }
+    }
+
+    return result;
+}
+
+function openBookmarksInNewTabs(bookmarks, localLinks) {
+    if (!Array.isArray(bookmarks) || bookmarks.length === 0) return 0;
+
+    var openedCount = 0;
+    for (var i = 0; i < bookmarks.length; i++) {
+        if (openBookmarkInNewTab(bookmarks[i], localLinks)) openedCount += 1;
+    }
+    return openedCount;
+}
+
+function openFolderBookmarksSnapshotInNewTabs(folderId, allFolders, allBookmarks, localLinks) {
+    return openBookmarksInNewTabs(
+        collectBookmarksInFolderSnapshot(folderId, allFolders, allBookmarks),
+        localLinks
+    );
+}
+
+function openBookmarkInNewTab(bookmark, localLinks) {
+    var nextUrl = getBookmarkOpenUrl(bookmark, localLinks);
+    if (!nextUrl) return false;
+    window.open(nextUrl, "_blank");
+    return true;
+}
+
+async function openFolderBookmarksInNewTabs(folderId, localLinks) {
+    if (!folderId) return 0;
+    var allBm = await getAllBookmarksInFolder(folderId);
+    if (!Array.isArray(allBm) || allBm.length === 0) return 0;
+
+    var resolvedLocalLinks = localLinks;
+    if (!resolvedLocalLinks && typeof getBookmarkLocalLinks === "function") {
+        resolvedLocalLinks = await getBookmarkLocalLinks();
+    }
+
+    return openBookmarksInNewTabs(allBm, resolvedLocalLinks);
+}
+
 // === Context menus ===
 function showFolderContextMenu(e, folder) {
     removeContextMenu();
@@ -12,14 +78,8 @@ function showFolderContextMenu(e, folder) {
     document.body.appendChild(menu);
 
     menu.querySelector('[data-action="openall"]').onclick = async function () {
-        var allBm = await getAllBookmarksInFolder(folder.id);
         var localLinks = await getBookmarkLocalLinks();
-        for (var a = 0; a < allBm.length; a++) {
-            var nextUrl = typeof getResolvedItemUrl === "function"
-                ? getResolvedItemUrl(allBm[a], localLinks)
-                : allBm[a].url;
-            if (nextUrl) window.open(nextUrl, "_blank");
-        }
+        await openFolderBookmarksInNewTabs(folder.id, localLinks);
         removeContextMenu();
     };
 

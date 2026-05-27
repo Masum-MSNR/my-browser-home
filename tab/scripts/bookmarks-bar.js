@@ -33,7 +33,7 @@ async function renderBookmarkBar(options) {
 
     // Root folders
     for (var f = 0; f < rootFolders.length; f++) {
-        createBarFolderItem(rootFolders[f], f);
+        createBarFolderItem(rootFolders[f], f, folders, bookmarks, localLinks);
     }
 
     // Separator between folders and bookmarks (if both exist)
@@ -60,7 +60,7 @@ async function renderBookmarkBar(options) {
     }, 100);
 }
 
-function createBarFolderItem(folder, idx) {
+function createBarFolderItem(folder, idx, allFolders, allBookmarks, localLinks) {
     var item = document.createElement("div");
     item.className = "bookmark-bar-item bm-bar-folder";
     item.draggable = true;
@@ -78,6 +78,10 @@ function createBarFolderItem(folder, idx) {
     item.appendChild(icon);
     item.appendChild(name);
 
+    item.addEventListener("mousedown", function (e) {
+        if (e.button === 1) e.preventDefault();
+    });
+
     // Click: open folder submenu
     item.addEventListener("click", function (e) {
         e.preventDefault();
@@ -89,6 +93,14 @@ function createBarFolderItem(folder, idx) {
         closeBarSubmenu();
         barFolderOpenId = folder.id;
         renderBarSubmenu(folder, item);
+    });
+
+    item.addEventListener("auxclick", function (e) {
+        if (e.button !== 1 || item.classList.contains("dragging")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeBarSubmenu();
+        openFolderBookmarksSnapshotInNewTabs(folder.id, allFolders, allBookmarks, localLinks);
     });
 
     // Right-click context menu
@@ -129,10 +141,21 @@ function createBarBookmarkItem(bm, idx, localLinks) {
     item.appendChild(favicon);
     item.appendChild(name);
 
+    item.addEventListener("mousedown", function (e) {
+        if (e.button === 1) e.preventDefault();
+    });
+
     // Click: open in same tab
     item.addEventListener("click", function (e) {
         if (item.classList.contains("dragging")) return;
         window.location.href = effectiveUrl || bm.url;
+    });
+
+    item.addEventListener("auxclick", function (e) {
+        if (e.button !== 1 || item.classList.contains("dragging")) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openBookmarkInNewTab(bm, localLinks);
     });
 
     // Right-click context menu
@@ -187,13 +210,7 @@ async function renderBarSubmenu(folder, anchor) {
         openAll.textContent = "Open all (" + childBookmarks.length + ")";
         openAll.onclick = async function (e) {
             e.stopPropagation();
-            var allBm = await getAllBookmarksInFolder(fid);
-            for (var a = 0; a < allBm.length; a++) {
-                var nextUrl = typeof getResolvedItemUrl === "function"
-                    ? getResolvedItemUrl(allBm[a], localLinks)
-                    : allBm[a].url;
-                if (nextUrl) window.open(nextUrl, "_blank");
-            }
+            await openFolderBookmarksInNewTabs(fid, localLinks);
             closeBarSubmenu();
         };
         sub.appendChild(openAll);
@@ -210,7 +227,7 @@ async function renderBarSubmenu(folder, anchor) {
     } else {
         // Child folders
         for (var cf = 0; cf < childFolders.length; cf++) {
-            var cfItem = createSubmenuFolderItem(childFolders[cf], folders, bookmarks, fid);
+            var cfItem = createSubmenuFolderItem(childFolders[cf], folders, bookmarks, localLinks);
             list.appendChild(cfItem);
         }
         // Child bookmarks
@@ -245,15 +262,25 @@ async function renderBarSubmenu(folder, anchor) {
     }, 100);
 }
 
-function createSubmenuFolderItem(folder, allFolders, allBookmarks, parentId) {
+function createSubmenuFolderItem(folder, allFolders, allBookmarks, localLinks) {
     var item = document.createElement("div");
     item.className = "bm-submenu-item bm-submenu-folder";
     item.innerHTML = '<i class="fas fa-folder bm-submenu-folder-icon"></i><span>' + folder.name + '</span>';
+    item.addEventListener("mousedown", function (e) {
+        if (e.button === 1) e.preventDefault();
+    });
     item.onclick = function (e) {
         e.stopPropagation();
         // Navigate into sub-folder within the submenu
         renderNestedSubmenu(folder, item);
     };
+    item.addEventListener("auxclick", function (e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openFolderBookmarksSnapshotInNewTabs(folder.id, allFolders, allBookmarks, localLinks);
+        closeBarSubmenu();
+    });
     return item;
 }
 
@@ -326,7 +353,7 @@ async function renderNestedSubmenu(folder, anchor) {
     var list = document.createElement("div");
     list.className = "bm-submenu-list";
     for (var cf = 0; cf < childFolders.length; cf++) {
-        list.appendChild(createSubmenuFolderItem(childFolders[cf], folders, bookmarks, fid));
+        list.appendChild(createSubmenuFolderItem(childFolders[cf], folders, bookmarks, localLinks));
     }
     for (var cb = 0; cb < childBookmarks.length; cb++) {
         list.appendChild(createSubmenuBookmarkItem(childBookmarks[cb], localLinks));
