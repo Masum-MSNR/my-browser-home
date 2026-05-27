@@ -68,107 +68,11 @@ async function renderMailList() {
     mails.forEach(function (m, idx) { addMailItem(m, idx); });
 }
 
-var MAIL_ICON_NS = "http://www.w3.org/2000/svg";
-var mailServiceIconSequence = 0;
-
-function createMailSvgElement(tagName, attrs) {
-    var node = document.createElementNS(MAIL_ICON_NS, tagName);
-    if (attrs) {
-        for (var key in attrs) {
-            if (!attrs.hasOwnProperty(key) || attrs[key] === undefined || attrs[key] === null) continue;
-            node.setAttribute(key, attrs[key]);
-        }
-    }
-    return node;
+function buildMailServiceIconSrc(url) {
+    return "/_favicon/?pageUrl=" + encodeURIComponent(url) + "&size=32";
 }
 
-function appendMailSvgElement(parent, tagName, attrs) {
-    var node = createMailSvgElement(tagName, attrs);
-    parent.appendChild(node);
-    return node;
-}
-
-function createServiceIconGraphic(serviceKey) {
-    var svg = createMailSvgElement("svg", {
-        viewBox: "0 0 24 24",
-        class: "service-icon-graphic service-icon-" + serviceKey,
-        "aria-hidden": "true",
-        focusable: "false"
-    });
-
-    if (serviceKey === "gmail") {
-        appendMailSvgElement(svg, "path", { fill: "#34A853", d: "M4 7.3v10.2C4 18.9 5.1 20 6.5 20H8V10.7L4 7.3Z" });
-        appendMailSvgElement(svg, "path", { fill: "#EA4335", d: "M4 7.3V6.5C4 5.1 5.1 4 6.5 4h.7L12 8.1 16.8 4h.7C18.9 4 20 5.1 20 6.5v.8L12 13.6 4 7.3Z" });
-        appendMailSvgElement(svg, "path", { fill: "#FBBC04", d: "M16 20h1.5c1.4 0 2.5-1.1 2.5-2.5V7.3l-4 3.4V20Z" });
-        appendMailSvgElement(svg, "path", { fill: "#4285F4", d: "M8 10.7v9.3h8v-9.3l-4 3.4-4-3.4Z" });
-        return svg;
-    }
-
-    if (serviceKey === "drive") {
-        appendMailSvgElement(svg, "path", { fill: "#0F9D58", d: "M9.2 3.5h5.6l4.5 7.8h-5.6L9.2 3.5Z" });
-        appendMailSvgElement(svg, "path", { fill: "#4285F4", d: "M13.7 11.3h5.6l-4.5 7.8H9.2l4.5-7.8Z" });
-        appendMailSvgElement(svg, "path", { fill: "#F4B400", d: "M9.2 3.5 4.7 11.3l4.5 7.8 4.5-7.8L9.2 3.5Z" });
-        return svg;
-    }
-
-    if (serviceKey === "meet") {
-        appendMailSvgElement(svg, "path", { fill: "#FBBC04", d: "M4.2 8.1 8.5 4.8V10L4.2 13.4V8.1Z" });
-        appendMailSvgElement(svg, "path", { fill: "#34A853", d: "M8.5 4.8h6.8c1 0 1.8.8 1.8 1.8v10.8c0 1-.8 1.8-1.8 1.8H8.5V4.8Z" });
-        appendMailSvgElement(svg, "path", { fill: "#4285F4", d: "M17.1 10.1 21 7.4v9.2l-3.9-2.7v-3.8Z" });
-        return svg;
-    }
-
-    if (serviceKey === "docs") {
-        appendMailSvgElement(svg, "path", { fill: "#1A73E8", d: "M7 2.8h7.2l4.8 4.8v13.6c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2V4.8c0-1.1.9-2 2-2Z" });
-        appendMailSvgElement(svg, "path", { fill: "#8AB4F8", d: "M14.2 2.8v4.8H19Z" });
-        appendMailSvgElement(svg, "rect", { x: "8.2", y: "11", width: "7.6", height: "1.4", rx: ".7", fill: "#FFFFFF" });
-        appendMailSvgElement(svg, "rect", { x: "8.2", y: "14.1", width: "7.6", height: "1.4", rx: ".7", fill: "#FFFFFF" });
-        appendMailSvgElement(svg, "rect", { x: "8.2", y: "17.2", width: "5.4", height: "1.4", rx: ".7", fill: "#FFFFFF" });
-        return svg;
-    }
-
-    if (serviceKey === "sheets") {
-        appendMailSvgElement(svg, "path", { fill: "#188038", d: "M7 2.8h7.2l4.8 4.8v13.6c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2V4.8c0-1.1.9-2 2-2Z" });
-        appendMailSvgElement(svg, "path", { fill: "#81C995", d: "M14.2 2.8v4.8H19Z" });
-        appendMailSvgElement(svg, "rect", { x: "8.3", y: "11", width: "7.4", height: "6.8", rx: ".8", fill: "none", stroke: "#FFFFFF", "stroke-width": "1.3" });
-        appendMailSvgElement(svg, "path", { d: "M12 11v6.8M8.3 14.4h7.4", fill: "none", stroke: "#FFFFFF", "stroke-width": "1.3", "stroke-linecap": "round" });
-        return svg;
-    }
-
-    if (serviceKey === "gemini") {
-        mailServiceIconSequence += 1;
-        var gradientId = "mail-gemini-gradient-" + mailServiceIconSequence;
-        var defs = appendMailSvgElement(svg, "defs");
-        var gradient = appendMailSvgElement(defs, "linearGradient", {
-            id: gradientId,
-            x1: "5",
-            y1: "19",
-            x2: "19",
-            y2: "5",
-            gradientUnits: "userSpaceOnUse"
-        });
-        appendMailSvgElement(gradient, "stop", { offset: "0%", "stop-color": "#1AA8FF" });
-        appendMailSvgElement(gradient, "stop", { offset: "45%", "stop-color": "#6D5EFC" });
-        appendMailSvgElement(gradient, "stop", { offset: "100%", "stop-color": "#B84DFF" });
-        appendMailSvgElement(svg, "path", {
-            fill: "url(#" + gradientId + ")",
-            d: "M12 2.4c.71 3.16 1.9 6.13 3.55 8.75 2.62 1.65 5.59 2.84 8.75 3.55-3.16.71-6.13 1.9-8.75 3.55-1.65 2.62-2.84 5.59-3.55 8.75-.71-3.16-1.9-6.13-3.55-8.75-2.62-1.65-5.59-2.84-8.75-3.55 3.16-.71 6.13-1.9 8.75-3.55C10.1 8.53 11.29 5.56 12 2.4Z"
-        });
-        return svg;
-    }
-
-    if (serviceKey === "cloud") {
-        appendMailSvgElement(svg, "path", { fill: "#EA4335", d: "M9 8.6c.93-1.62 2.67-2.7 4.66-2.7 1.97 0 3.69 1.06 4.63 2.65l-1.92 1.11a3.46 3.46 0 0 0-2.71-1.3c-1.08 0-2.07.49-2.73 1.29L9 8.6Z" });
-        appendMailSvgElement(svg, "path", { fill: "#4285F4", d: "M18.3 8.55a4.73 4.73 0 0 1 4.2 4.7c0 1.14-.41 2.18-1.08 2.99l-1.72-1.4c.35-.43.56-.97.56-1.59 0-1.17-.73-2.18-1.76-2.58l.8-2.12Z" });
-        appendMailSvgElement(svg, "path", { fill: "#34A853", d: "M8 18.2h10.1c.58 0 1.12-.12 1.61-.35l1.72 1.41a5.88 5.88 0 0 1-3.33 1.04H8a5 5 0 0 1-4.57-2.98l2.05-.92A2.78 2.78 0 0 0 8 18.2Z" });
-        appendMailSvgElement(svg, "path", { fill: "#FBBC04", d: "M6.72 9.43A4.4 4.4 0 0 0 3.5 13.7c0 1.03.35 1.97.94 2.71l-1.96 1.04A6.64 6.64 0 0 1 1.3 13.7c0-2.54 1.43-4.75 3.52-5.86l1.9 1.59Z" });
-        return svg;
-    }
-
-    return svg;
-}
-
-function createServiceLink(serviceKey, href, title) {
+function createServiceLink(serviceKey, href, title, targetUrl) {
     const link = document.createElement("a");
     link.className = "service-link service-link-" + serviceKey;
     link.href = href;
@@ -176,8 +80,35 @@ function createServiceLink(serviceKey, href, title) {
     link.target = "_blank";
     link.rel = "noreferrer noopener";
     link.setAttribute("aria-label", title);
-    link.appendChild(createServiceIconGraphic(serviceKey));
+
+    const img = document.createElement("img");
+    img.className = "service-icon-image service-icon-" + serviceKey;
+    img.src = buildMailServiceIconSrc(targetUrl);
+    img.alt = "";
+    img.loading = "lazy";
+    img.decoding = "async";
+    link.appendChild(img);
+
     return link;
+}
+
+function getMailServiceDefinitions(prefix) {
+    return [
+        { key: "gmail", title: "Gmail", targetUrl: "https://mail.google.com" },
+        { key: "drive", title: "Drive", targetUrl: "https://drive.google.com/drive/my-drive" },
+        { key: "meet", title: "Meet", targetUrl: "https://meet.google.com" },
+        { key: "docs", title: "Docs", targetUrl: "https://docs.google.com/document/u/0/" },
+        { key: "sheets", title: "Sheets", targetUrl: "https://docs.google.com/spreadsheets/u/0/" },
+        { key: "gemini", title: "Gemini", targetUrl: "https://gemini.google.com/app" },
+        { key: "cloud", title: "Cloud", targetUrl: "https://console.cloud.google.com/" }
+    ].map(function (service) {
+        return {
+            key: service.key,
+            title: service.title,
+            targetUrl: service.targetUrl,
+            href: prefix + service.targetUrl
+        };
+    });
 }
 
 function isRenderableMailImageUrl(image) {
@@ -324,14 +255,10 @@ function addMailItem({ email, name, image }, idx) {
     services.className = "account-services";
 
     const prefix = `https://accounts.google.com/AccountChooser?Email=${encodeURIComponent(email)}&continue=`;
-
-    services.appendChild(createServiceLink("gmail", prefix + "https://mail.google.com", "Gmail"));
-    services.appendChild(createServiceLink("drive", prefix + "https://drive.google.com/drive/my-drive", "Drive"));
-    services.appendChild(createServiceLink("meet", prefix + "https://meet.google.com", "Meet"));
-    services.appendChild(createServiceLink("docs", prefix + "https://docs.google.com/document/u/0/", "Docs"));
-    services.appendChild(createServiceLink("sheets", prefix + "https://docs.google.com/spreadsheets/u/0/", "Sheets"));
-    services.appendChild(createServiceLink("gemini", prefix + "https://gemini.google.com/app", "Gemini"));
-    services.appendChild(createServiceLink("cloud", prefix + "https://console.cloud.google.com/", "Cloud"));
+    const serviceLinks = getMailServiceDefinitions(prefix);
+    serviceLinks.forEach(function (service) {
+        services.appendChild(createServiceLink(service.key, service.href, service.title, service.targetUrl));
+    });
 
     info.appendChild(nameEl);
     info.appendChild(emailEl);

@@ -192,27 +192,29 @@
 }
 
 .account-services {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, 40px);
-    gap: 0.55rem;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
     width: 100%;
     align-items: center;
+    justify-content: space-between;
 }
 
 .service-link {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     padding: 0;
-    border-radius: 12px;
+    border-radius: 9px;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.09);
     text-decoration: none;
     transition: background 0.15s, transform 0.15s, border-color 0.15s, box-shadow 0.15s;
     box-sizing: border-box;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    flex: 0 0 32px;
 }
 
 .service-link:hover {
@@ -222,9 +224,11 @@
     transform: translateY(-1px);
 }
 
-.service-link svg {
+.service-icon-image {
     display: block;
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
+    object-fit: contain;
+    border-radius: 4px;
 }
