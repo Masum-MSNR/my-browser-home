@@ -24,6 +24,16 @@ function getStoredRealFaviconUrl(entry) {
   return entry && entry.favicon && !isFallbackFaviconUrl(entry.favicon) ? entry.favicon : "";
 }
 
+function getObservedFaviconUrl(entry) {
+  return entry && typeof entry.observedFaviconUrl === "string" ? entry.observedFaviconUrl : "";
+}
+
+function getRenderableCachedFaviconSource(entry) {
+  if (!entry || typeof entry !== "object") return "";
+  if (entry.faviconDataUrl && entry.faviconDataUrl !== DEFAULT_FAVICON) return entry.faviconDataUrl;
+  return getObservedFaviconUrl(entry);
+}
+
 function resolveTrackedItemFaviconUrl(item, localLinks) {
   if (!item) return "";
   if (typeof getResolvedItemUrl === "function") {
@@ -116,6 +126,10 @@ function sanitizeStoredFaviconEntry(url, entry) {
     delete next.faviconDataUrlSource;
   }
 
+  if (next.observedFaviconUrl && typeof next.observedFaviconUrl !== "string") {
+    delete next.observedFaviconUrl;
+  }
+
   if (!next.faviconDataUrl && (!next.favicon || isFallbackFaviconUrl(next.favicon))) {
     next.favicon = DEFAULT_FAVICON;
     next.faviconDataUrl = DEFAULT_FAVICON;
@@ -123,6 +137,11 @@ function sanitizeStoredFaviconEntry(url, entry) {
 
   if (!next.faviconDataUrl || next.faviconDataUrl === DEFAULT_FAVICON) {
     delete next.faviconDataUrlSource;
+  }
+
+  if (!getRenderableCachedFaviconSource(next) && (!next.favicon || isFallbackFaviconUrl(next.favicon))) {
+    next.favicon = DEFAULT_FAVICON;
+    next.faviconDataUrl = DEFAULT_FAVICON;
   }
 
   return next;
@@ -174,7 +193,7 @@ function ensureRenderableFaviconEntry(url, storedFavicon) {
   if (!cacheKey) return createRenderableFallbackEntry(url, storedFavicon);
 
   var existing = getCachedFaviconEntrySync(url);
-  if (existing && existing.faviconDataUrl) {
+  if (existing && getRenderableCachedFaviconSource(existing)) {
     schedulePageFaviconRepair(url, existing);
     return existing;
   }

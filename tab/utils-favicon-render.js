@@ -22,8 +22,7 @@ var DEFAULT_FAVICON = "data:image/svg+xml," + encodeURIComponent(
 // data URL yet, fall back to a built-in icon instead of issuing a remote load.
 function setFaviconWithFallback(img, url, storedFavicon) {
   var cachedEntry = ensureRenderableFaviconEntry(url, storedFavicon);
-  var cachedDataUrl = cachedEntry && cachedEntry.faviconDataUrl ? cachedEntry.faviconDataUrl : "";
-  var primary = cachedDataUrl;
+  var primary = getRenderableCachedFaviconSource(cachedEntry);
 
   if (!primary) primary = DEFAULT_FAVICON;
 
@@ -44,7 +43,7 @@ function setFaviconWithFallback(img, url, storedFavicon) {
 function resolveCachedFaviconEntry(url, cb) {
   try {
     var cached = getCachedFaviconEntrySync(url);
-    if (cached && cached.faviconDataUrl) {
+    if (cached && getRenderableCachedFaviconSource(cached)) {
       schedulePageFaviconRepair(url, cached);
       cb(cached);
       return;
@@ -56,7 +55,7 @@ function resolveCachedFaviconEntry(url, cb) {
       if (!result || !result[cacheKey] || typeof result[cacheKey] !== "object") return;
       var entry = sanitizeStoredFaviconEntry(url, result[cacheKey]);
       if (!entry) return;
-      if (!entry.faviconDataUrl) return;
+      if (!getRenderableCachedFaviconSource(entry)) return;
       rememberFaviconCacheEntry(cacheKey, entry);
       schedulePageFaviconRepair(url, entry);
       if (JSON.stringify(entry) !== JSON.stringify(result[cacheKey])) {
@@ -74,7 +73,7 @@ function resolveCachedFaviconEntry(url, cb) {
 function refreshFaviconFromCache(img, url, onResolved) {
   resolveCachedFaviconEntry(url, function (entry) {
     if (!entry) return;
-    var renderUrl = entry.faviconDataUrl;
+    var renderUrl = getRenderableCachedFaviconSource(entry);
     if (!renderUrl) return;
     clearFaviconFailure(url);
     img.src = renderUrl;
@@ -98,7 +97,7 @@ if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged 
       if (!isFaviconCacheStorageKey(key)) continue;
       var next = changes[key].newValue;
       if (!next || typeof next !== "object") continue;
-      if (!next.favicon && !next.faviconDataUrl) continue;
+      if (!next.favicon && !next.faviconDataUrl && !next.observedFaviconUrl) continue;
       rememberFaviconCacheEntry(key, next);
 
       var cacheUrl = next.url || getFaviconUrlFromCacheKey(key);

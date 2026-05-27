@@ -161,8 +161,10 @@ function storeTabFaviconCache(tab, tabId) {
     getTrackedFaviconUrlsForTab(tabId, tab.url, function (trackedUrls) {
         if (!Array.isArray(trackedUrls) || trackedUrls.length === 0) return;
 
+        var observedFaviconUrl = tab.favIconUrl || "";
+        var hasObservedFavicon = !!observedFaviconUrl;
         var hasRealFavicon = !!(tab.favIconUrl && (typeof isFallbackFaviconUrl !== "function" || !isFallbackFaviconUrl(tab.favIconUrl)));
-        if (!hasRealFavicon) {
+        if (!hasObservedFavicon) {
             for (var i = 0; i < trackedUrls.length; i++) {
                 (function (trackedUrl) {
                     if (typeof getStoredFaviconEntry === "function") {
@@ -182,16 +184,18 @@ function storeTabFaviconCache(tab, tabId) {
         for (var j = 0; j < trackedUrls.length; j++) {
             var trackedUrl = trackedUrls[j];
             if (typeof mergeStoredFaviconEntry === "function") {
-                mergeStoredFaviconEntry(trackedUrl, {
-                    favicon: tab.favIconUrl,
+                var entryUpdate = {
                     title: tab.title || tab.url,
                     visitedUrl: trackedUrl,
+                    observedFaviconUrl: observedFaviconUrl,
                     updatedAt: Date.now()
-                });
+                };
+                if (hasRealFavicon) entryUpdate.favicon = observedFaviconUrl;
+                mergeStoredFaviconEntry(trackedUrl, entryUpdate);
             }
 
-            if (typeof primeFaviconCache === "function") {
-                primeFaviconCache(trackedUrl, tab.favIconUrl, tab.favIconUrl, { forceRefresh: true });
+            if (hasRealFavicon && typeof primeFaviconCache === "function") {
+                primeFaviconCache(trackedUrl, observedFaviconUrl, observedFaviconUrl, { forceRefresh: true });
             }
         }
 

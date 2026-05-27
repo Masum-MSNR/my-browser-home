@@ -125,6 +125,15 @@ function createBackgroundContext() {
     assert('cache backfill collects recovered favicon updates', updates.length === 1 && updates[0].favicon === 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico');
     assert('cache backfill applies recovered favicon updates without mutating item revision', cacheTest.context.applyCachedFaviconBackfillUpdates(items, updates) && items[0].favicon === 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico' && items[0].updatedAt === 77);
 
+    const observedEntry = cacheTest.context.sanitizeStoredFaviconEntry('https://example.com', {
+        url: 'https://example.com/',
+        favicon: 'data:default',
+        faviconDataUrl: 'data:default',
+        observedFaviconUrl: 'chrome://favicon2/?size=32&pageUrl=https%3A%2F%2Fexample.com%2F'
+    });
+    assert('cache sanitize preserves last observed browser favicon source for local rendering', observedEntry && observedEntry.observedFaviconUrl === 'chrome://favicon2/?size=32&pageUrl=https%3A%2F%2Fexample.com%2F');
+    assert('renderable source prefers observed browser favicon when cached data url is unavailable', cacheTest.context.getRenderableCachedFaviconSource(observedEntry) === 'chrome://favicon2/?size=32&pageUrl=https%3A%2F%2Fexample.com%2F');
+
     const backgroundTest = createBackgroundContext();
     const trackedUrls = [
         'https://example.com/article?from=sync',
