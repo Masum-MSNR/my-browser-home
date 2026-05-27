@@ -210,6 +210,32 @@ function assert(label, condition) {
     assert('manual sync writes local changed bookmark item doc', bookmarkWritePaths.indexOf('users/u1/bookmarks/local-added-bookmark') !== -1);
     assert('manual sync writes settings doc instead of legacy blob', bookmarkWritePaths.indexOf('users/u1/settings/main') !== -1);
 
+    const signInSync = createSyncContext();
+    delete signInSync.localStorageData._fbu;
+    signInSync.context.currentUser = null;
+    signInSync.context.syncInitialized = true;
+    signInSync.context.sendToServiceWorker = async function () {
+        return { idToken: 'google-token', redirectUri: 'https://redirect.test' };
+    };
+    signInSync.context.fetch = async function (url) {
+        if (url.indexOf('/accounts:signInWithIdp?key=') !== -1) {
+            return {
+                json: async function () {
+                    return {
+                        idToken: 'firebase-token',
+                        localId: 'u1',
+                        email: 'u@test.local',
+                        refreshToken: 'refresh-token'
+                    };
+                }
+            };
+        }
+        return { ok: true, status: 200, json: async function () { return { fields: {} }; } };
+    };
+    await signInSync.context.signIn();
+    assert('signIn automatically syncs without manual click', signInSync.remoteWrites.length > 0);
+    assert('signIn merges remote bookmarks locally', ids(signInSync.storage.bookmarks).indexOf('remote-bookmark') !== -1);
+
     const autoSave = createSyncContext();
     autoSave.context.currentUser = { uid: 'u1', email: 'u@test.local', token: 'token' };
     autoSave.context.syncInitialized = true;

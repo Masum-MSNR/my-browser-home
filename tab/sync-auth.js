@@ -51,6 +51,17 @@ async function signIn() {
     lastSeenRemoteRevision = null;
 
     if (typeof updateSyncUI === "function") updateSyncUI(currentUser);
+    try {
+        if (typeof waitForSyncReady === "function") await waitForSyncReady();
+        if (typeof fbSaveAll === "function") await fbSaveAll();
+    } catch (e) {
+        if (typeof showSyncBubble === "function") {
+            showSyncBubble("Signed in, but initial sync failed", "error");
+        }
+        if (typeof autoSync === "function" && typeof hasDirtySyncState === "function" && hasDirtySyncState()) {
+            autoSync({ reason: "signin-resume" });
+        }
+    }
     if (typeof autoSync === "function" && typeof hasDirtySyncState === "function" && hasDirtySyncState()) {
         autoSync({ reason: "signin-resume" });
     }
