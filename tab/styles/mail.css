@@ -207,78 +207,24 @@
     height: 40px;
     padding: 0;
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.09);
     text-decoration: none;
-    transition: background 0.15s, transform 0.15s, border-color 0.15s;
+    transition: background 0.15s, transform 0.15s, border-color 0.15s, box-shadow 0.15s;
     box-sizing: border-box;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .service-link:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.16);
-    color: white;
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.17);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.18);
     transform: translateY(-1px);
 }
 
-.service-icon {
-    width: 24px;
-    height: 24px;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.service-link i,
 .service-link svg {
     display: block;
-    line-height: 1;
+    width: 22px;
+    height: 22px;
     flex-shrink: 0;
-}
-
-.service-link i {
-    font-size: 13px;
-}
-
-.service-icon-svg {
-    width: 14px;
-    height: 14px;
-}
-
-.service-link-gmail .service-icon {
-    background: linear-gradient(135deg, #ea4335, #c5221f);
-    color: #fff;
-}
-
-.service-link-drive .service-icon {
-    background: linear-gradient(135deg, #0f9d58, #34a853);
-    color: #fff;
-}
-
-.service-link-meet .service-icon {
-    background: linear-gradient(135deg, #16a34a, #0ea5e9);
-    color: #fff;
-}
-
-.service-link-docs .service-icon {
-    background: linear-gradient(135deg, #1a73e8, #1558d6);
-    color: #fff;
-}
-
-.service-link-sheets .service-icon {
-    background: linear-gradient(135deg, #188038, #34a853);
-    color: #fff;
-}
-
-.service-link-gemini .service-icon {
-    background: linear-gradient(135deg, #6d5efc, #16c6ff);
-    color: #fff;
-}
-
-.service-link-cloud .service-icon {
-    background: linear-gradient(135deg, #0ea5e9, #0369a1);
-    color: #fff;
 }
