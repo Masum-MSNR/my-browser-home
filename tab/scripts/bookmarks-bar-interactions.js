@@ -47,7 +47,11 @@ function openFolderBookmarksSnapshotInNewTabs(folderId, allFolders, allBookmarks
 function openBookmarkInNewTab(bookmark, localLinks) {
     var nextUrl = getBookmarkOpenUrl(bookmark, localLinks);
     if (!nextUrl) return false;
-    window.open(nextUrl, "_blank");
+    if (typeof openSavedItemInNewTab === "function") {
+        openSavedItemInNewTab("bookmark", bookmark.id, nextUrl);
+    } else {
+        window.open(nextUrl, "_blank");
+    }
     return true;
 }
 

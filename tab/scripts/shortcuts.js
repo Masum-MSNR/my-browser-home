@@ -44,7 +44,7 @@ async function clearShortcutLocalLink(shortcutId) {
 }
 
 async function fetchShortcutFaviconOnSave(shortcutId) {
-  if (!shortcutId || typeof requestFaviconCacheRefresh !== "function") return;
+  if (!shortcutId || typeof captureSavedItemFavicon !== "function") return;
 
   var all = await getShortcuts();
   if (!Array.isArray(all)) return;
@@ -64,14 +64,14 @@ async function fetchShortcutFaviconOnSave(shortcutId) {
     : shortcut.url;
   if (!effectiveUrl) return;
 
-  var result = await requestFaviconCacheRefresh(effectiveUrl, shortcut.favicon || null);
-  if (!result) return;
-
-  var nextFavicon = result.realUrl || DEFAULT_FAVICON;
-  if (!nextFavicon || shortcut.favicon === nextFavicon) return;
-
-  shortcut.favicon = nextFavicon;
-  await setShortcutsLocalOnly(all);
+  await captureSavedItemFavicon({
+    itemId: shortcut.id,
+    kind: "shortcut",
+    effectiveUrl: effectiveUrl
+  }, {
+    sourceType: "save-probe",
+    forceRefresh: true
+  });
 }
 
 async function renderShortcuts() {
@@ -103,6 +103,8 @@ async function renderShortcuts() {
     img.className = "shortcut-icon";
     img.alt = "";
     img.draggable = false;
+    img.dataset.shortcutId = shortcut.id;
+    img.dataset.faviconKind = "shortcut";
     setFaviconWithFallback(img, effectiveUrl || shortcut.url, shortcut.favicon);
     iconWrap.appendChild(img);
 
@@ -112,6 +114,36 @@ async function renderShortcuts() {
 
     link.appendChild(iconWrap);
     link.appendChild(label);
+
+    link.addEventListener("mousedown", function (e) {
+      if (e.button === 1) e.preventDefault();
+    });
+    link.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (e.metaKey || e.ctrlKey) {
+        if (typeof openSavedItemInNewTab === "function") {
+          openSavedItemInNewTab("shortcut", shortcut.id, effectiveUrl || shortcut.url);
+        } else {
+          window.open(effectiveUrl || shortcut.url, "_blank");
+        }
+        return;
+      }
+      if (typeof openSavedItemInCurrentTab === "function") {
+        openSavedItemInCurrentTab("shortcut", shortcut.id, effectiveUrl || shortcut.url);
+      } else {
+        window.location.href = effectiveUrl || shortcut.url;
+      }
+    });
+    link.addEventListener("auxclick", function (e) {
+      if (e.button !== 1) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof openSavedItemInNewTab === "function") {
+        openSavedItemInNewTab("shortcut", shortcut.id, effectiveUrl || shortcut.url);
+      } else {
+        window.open(effectiveUrl || shortcut.url, "_blank");
+      }
+    });
 
     const menuBtn = document.createElement("button");
     menuBtn.className = "shortcut-menu-btn";
@@ -168,6 +200,7 @@ async function renderShortcuts() {
       }
       await setShortcuts(all);
       await clearShortcutLocalLink(deleted.id);
+      if (typeof removeSavedItemFaviconRecord === "function") await removeSavedItemFaviconRecord(deleted.id);
       renderShortcuts();
     };
 
@@ -351,10 +384,9 @@ shortcutForm.onsubmit = async (e) => {
     var nextEffectiveUrl = localUrl || url;
     existingShortcut.name = name;
     existingShortcut.url = url;
-    if (previousUrl !== url) delete existingShortcut.favicon;
     existingShortcut.updatedAt = Date.now();
     savedShortcutId = existingShortcut.id;
-    shouldFetchFavicon = previousEffectiveUrl !== nextEffectiveUrl || !existingShortcut.favicon;
+    shouldFetchFavicon = previousEffectiveUrl !== nextEffectiveUrl || !hasRenderableSavedItemFavicon(existingShortcut.id, nextEffectiveUrl);
   } else {
     var createdShortcut = {
       id: crypto.randomUUID(),

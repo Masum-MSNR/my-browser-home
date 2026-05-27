@@ -132,6 +132,8 @@ function createBarBookmarkItem(bm, idx, localLinks) {
     favicon.className = "bm-favicon";
     favicon.draggable = false;
     favicon.alt = "";
+    favicon.dataset.bmId = bm.id;
+    favicon.dataset.faviconKind = "bookmark";
     setFaviconWithFallback(favicon, effectiveUrl || bm.url, bm.favicon);
 
     var name = document.createElement("span");
@@ -148,7 +150,11 @@ function createBarBookmarkItem(bm, idx, localLinks) {
     // Click: open in same tab
     item.addEventListener("click", function (e) {
         if (item.classList.contains("dragging")) return;
-        window.location.href = effectiveUrl || bm.url;
+        if (typeof openSavedItemInCurrentTab === "function") {
+            openSavedItemInCurrentTab("bookmark", bm.id, effectiveUrl || bm.url);
+        } else {
+            window.location.href = effectiveUrl || bm.url;
+        }
     });
 
     item.addEventListener("auxclick", function (e) {
@@ -296,9 +302,28 @@ function createSubmenuBookmarkItem(bm, localLinks) {
     favicon.alt = "";
     favicon.style.width = "14px";
     favicon.style.height = "14px";
+    favicon.dataset.bmId = bm.id;
+    favicon.dataset.faviconKind = "bookmark";
     setFaviconWithFallback(favicon, effectiveUrl || bm.url, bm.favicon);
     item.appendChild(favicon);
     item.appendChild(document.createTextNode(" " + bm.name));
+    item.addEventListener("mousedown", function (e) {
+        if (e.button === 1) e.preventDefault();
+    });
+    item.addEventListener("click", function (e) {
+        e.preventDefault();
+        if (typeof openSavedItemInCurrentTab === "function") {
+            openSavedItemInCurrentTab("bookmark", bm.id, effectiveUrl || bm.url);
+        } else {
+            window.location.href = effectiveUrl || bm.url;
+        }
+    });
+    item.addEventListener("auxclick", function (e) {
+        if (e.button !== 1) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openBookmarkInNewTab(bm, localLinks);
+    });
     return item;
 }
 

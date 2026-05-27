@@ -174,6 +174,10 @@ window.addEventListener("syncitemmetaupdated", async function (event) {
     await backfillBookmarkFaviconsFromCache();
 });
 
+window.addEventListener(ITEM_FAVICON_CHANGED_EVENT, function () {
+    refreshAllFaviconsFromCache();
+});
+
 chrome.storage.onChanged.addListener(function (changes, areaName) {
     if (areaName !== "local") return;
     if (typeof BOOKMARK_LOCAL_LINKS_STORAGE_KEY !== "undefined" && changes[BOOKMARK_LOCAL_LINKS_STORAGE_KEY]) {
@@ -185,44 +189,8 @@ chrome.storage.onChanged.addListener(function (changes, areaName) {
         })();
         return;
     }
-    var updatedKey = null;
-    for (var key in changes) {
-        if (!changes.hasOwnProperty(key)) continue;
-        if (typeof isFaviconCacheStorageKey === "function" && !isFaviconCacheStorageKey(key)) continue;
-        if (changes[key].newValue && (changes[key].newValue.favicon || changes[key].newValue.faviconDataUrl)) {
-            updatedKey = key; break;
-        }
-    }
-    if (!updatedKey) return;
-    // Refresh on top bar
-    var barItems = bookmarkBarItems.querySelectorAll(".bm-bar-bookmark");
-    for (var i = 0; i < barItems.length; i++) {
-        var url = barItems[i].dataset.bmUrl;
-        if (url && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(url) === updatedKey) {
-            var img = barItems[i].querySelector(".bm-favicon");
-            if (img) refreshFaviconFromCache(img, url, barItems[i].dataset.bmId ? bmFaviconCb(barItems[i].dataset.bmId) : null);
-        }
-    }
-    // Refresh in dialog dropdown (if open)
-    var dlItems = document.querySelectorAll("#bookmark-dropdown-list .bookmark-dropdown-item");
-    for (var j = 0; j < dlItems.length; j++) {
-        var dlImg = dlItems[j].querySelector(".bm-dl-favicon");
-        var dlUrl = dlImg ? (dlImg.dataset.bmUrl || "") : "";
-        if (dlImg && dlUrl && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(dlUrl) === updatedKey) {
-            refreshFaviconFromCache(dlImg, dlUrl, dlImg.dataset.bmId ? bmFaviconCb(dlImg.dataset.bmId) : null);
-        }
-    }
-    // Refresh in submenu (if open)
-    var subItems = document.querySelectorAll("#bm-bar-submenu .bm-submenu-bookmark");
-    for (var k = 0; k < subItems.length; k++) {
-        var subImg = subItems[k].querySelector("img");
-        if (subImg && typeof getFaviconCacheKey === "function" && getFaviconCacheKey(subItems[k].href) === updatedKey) {
-            refreshFaviconFromCache(subImg, subItems[k].href, subItems[k].dataset.bmId ? bmFaviconCb(subItems[k].dataset.bmId) : null);
-        }
-    }
-    (async function () {
-        await backfillBookmarkFaviconsFromCache(updatedKey);
-    })();
+    if (!changes[ITEM_FAVICON_STORE_STORAGE_KEY]) return;
+    refreshAllFaviconsFromCache();
 });
 
 // === Init ===

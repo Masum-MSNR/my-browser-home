@@ -228,10 +228,9 @@ function wireAddForms() {
             var nextEffectiveUrl = localUrl || url;
             existing.name = name;
             existing.url = url;
-            if (previousUrl !== url) delete existing.favicon;
             existing.updatedAt = now;
             savedBookmarkId = existing.id;
-            shouldFetchFavicon = previousEffectiveUrl !== nextEffectiveUrl || !existing.favicon;
+            shouldFetchFavicon = previousEffectiveUrl !== nextEffectiveUrl || !hasRenderableSavedItemFavicon(existing.id, nextEffectiveUrl);
             if ((existing.folderId || null) !== parentId) {
                 existing.folderId = parentId;
                 existing.orderKey = getNextScopedOrderKey(all, "folderId", parentId);
@@ -355,6 +354,7 @@ function createBookmarkItem(bm, idx, localLinks) {
     favicon.className = "bm-dl-favicon";
     favicon.alt = "";
     favicon.dataset.bmId = bm.id;
+    favicon.dataset.faviconKind = "bookmark";
     favicon.dataset.bmUrl = effectiveUrl || bm.url;
     setFaviconWithFallback(favicon, effectiveUrl || bm.url, bm.favicon);
 
@@ -372,7 +372,11 @@ function createBookmarkItem(bm, idx, localLinks) {
     // Click bookmark → close dialog, open in same tab
     item.addEventListener("click", function () {
         closeBookmarkDropdown();
-        window.location.href = effectiveUrl || bm.url;
+        if (typeof openSavedItemInCurrentTab === "function") {
+            openSavedItemInCurrentTab("bookmark", bm.id, effectiveUrl || bm.url);
+        } else {
+            window.location.href = effectiveUrl || bm.url;
+        }
     });
     item.addEventListener("auxclick", function (e) {
         if (e.button !== 1) return;

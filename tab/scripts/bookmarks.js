@@ -144,6 +144,7 @@ async function deleteBookmarkById(bookmarkId) {
     addDeletedTombstones("bookmarks", [deleted.id], now);
     normalizeScopedItems(all, "folderId", deleted.folderId || null, now);
     await clearBookmarkLocalLink(deleted.id);
+    if (typeof removeSavedItemFaviconRecord === "function") await removeSavedItemFaviconRecord(deleted.id);
     await setBookmarks(all);
     return true;
 }
@@ -275,40 +276,17 @@ async function getAllBookmarksInFolder(folderId) {
 }
 
 // === Bar rendering ===
-// Persist a resolved favicon URL onto a bookmark, so it syncs across devices
-// and survives chrome.storage.local cache loss.
 async function persistBookmarkFavicon(bookmarkId, realUrl) {
-    var all = await getBookmarks();
-    if (!Array.isArray(all)) return;
-    var changed = false;
-    for (var i = 0; i < all.length; i++) {
-        if (all[i] && all[i].id === bookmarkId && all[i].favicon !== realUrl) {
-            all[i].favicon = realUrl;
-            changed = true;
-        }
-    }
-    if (changed) await setBookmarksLocalOnly(all);
+    return { bookmarkId: bookmarkId, realUrl: realUrl };
 }
 
-async function backfillBookmarkFaviconsFromCache(targetCacheKey) {
-    if (typeof collectCachedFaviconBackfillUpdates !== "function" || typeof applyCachedFaviconBackfillUpdates !== "function") {
-        return false;
-    }
-
-    var all = await getBookmarks();
-    if (!Array.isArray(all) || all.length === 0) return false;
-
-    var localLinks = await getBookmarkLocalLinks();
-    var updates = await collectCachedFaviconBackfillUpdates(all, localLinks, targetCacheKey);
-    if (!updates.length) return false;
-
-    if (!applyCachedFaviconBackfillUpdates(all, updates)) return false;
-    await setBookmarksLocalOnly(all);
-    return true;
+async function backfillBookmarkFaviconsFromCache() {
+    if (typeof captureMissingSavedItemFavicons !== "function") return false;
+    return (await captureMissingSavedItemFavicons("bookmark")) > 0;
 }
 
 async function fetchBookmarkFaviconOnSave(bookmarkId) {
-    if (!bookmarkId || typeof requestFaviconCacheRefresh !== "function") return;
+    if (!bookmarkId || typeof captureSavedItemFavicon !== "function") return;
 
     var all = await getBookmarks();
     if (!Array.isArray(all)) return;
@@ -328,16 +306,16 @@ async function fetchBookmarkFaviconOnSave(bookmarkId) {
         : bookmark.url;
     if (!effectiveUrl) return;
 
-    var result = await requestFaviconCacheRefresh(effectiveUrl, bookmark.favicon || null);
-    if (!result) return;
-
-    var nextFavicon = result.realUrl || DEFAULT_FAVICON;
-    if (!nextFavicon || bookmark.favicon === nextFavicon) return;
-
-    bookmark.favicon = nextFavicon;
-    await setBookmarksLocalOnly(all);
+    await captureSavedItemFavicon({
+        itemId: bookmark.id,
+        kind: "bookmark",
+        effectiveUrl: effectiveUrl
+    }, {
+        sourceType: "save-probe",
+        forceRefresh: true
+    });
 }
 
 function bmFaviconCb(bookmarkId) {
-    return function (realUrl) { persistBookmarkFavicon(bookmarkId, realUrl); };
+    return function () { return bookmarkId; };
 }
